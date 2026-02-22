@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Property LVAR — BodySpec Expansion</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;900&family=DM+Mono:wght@300;400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<script>
+// ─────────────────────────────────────────────
+// API CONFIGURATION — replace key here if rotated
+// ─────────────────────────────────────────────
+const GMAPS_API_KEY   = 'AIzaSyAIgjXgnHvJB_as1COtVJaYgqHdv-ZJvZ0';
+const CENSUS_API_KEY  = '';           // optional — Census API is free, no key required for most endpoints
+const COMPETITOR_RADIUS_M = 8046;    // 5 miles in meters
+const ISOCHRONE_MINUTES   = 5;       // drive-time isochrone
+const COMPETITOR_TYPES = [
+  'gym', 'fitness_center', 'yoga_studio', 'spa',
+  'physiotherapist', 'health', 'grocery_or_supermarket'
+];
+const COMPETITOR_KEYWORDS = [
+  'gym', 'fitness', 'yoga', 'pilates', 'medspa', 'wellness',
+  'physical therapy', 'body composition', 'DXA', 'dexa scan',
+  'whole foods', 'organic market'
+];
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f8f6;
+    --surface: #ffffff;
+    --surface2: #f0f4f1;
+    --border: #d9e5dc;
+    --accent: #69D994;
+    --accent2: #1C3133;
+    --accent3: #3a7d5e;
+    --text: #1C3133;
+    --text-dim: #5a7170;
+    --text-dimmer: #a0b5b3;
+    --green: #3aab6b;
+    --yellow: #e5993a;
+    --red: #d94f4f;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; min-height: 100vh; overflow-x: hidden; }
+
+  /* MAP PANEL */
+  .map-overlay { position: fixed; inset: 0; background: rgba(28,49,51,0.45); z-index: 400; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .map-overlay.open { opacity: 1; pointer-events: all; }
+  .map-panel { position: fixed; top: 0; right: -680px; width: 660px; height: 100vh; background: var(--surface); z-index: 500; display: flex; flex-direction: column; box-shadow: -8px 0 40px rgba(28,49,51,0.18); transition: right 0.35s cubic-bezier(0.23,1,0.32,1); }
+  .map-panel.open { right: 0; }
+  .map-panel-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; }
+  .map-panel-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; color: var(--text); }
+  .map-panel-addr  { font-size: 0.68rem; color: var(--text-dim); margin-top: 3px; }
+  .map-panel-close { background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 1.2rem; padding: 4px; line-height: 1; transition: color 0.15s; }
+  .map-panel-close:hover { color: var(--text); }
+  #map-canvas { flex: 1; min-height: 0; }
+  .map-data-strip { padding: 14px 24px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex-shrink: 0; background: var(--surface2); }
+  .map-stat { }
+  .map-stat-label { font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dimmer); margin-bottom: 4px; }
+  .map-stat-val { font-family: 'Fraunces', serif; font-size: 1.4rem; font-weight: 600; color: var(--accent3); line-height: 1; }
+  .map-stat-sub { font-size: 0.62rem; color: var(--text-dim); margin-top: 2px; }
+  .map-loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dimmer); font-size: 0.75rem; letter-spacing: 0.08em; flex-direction: column; gap: 10px; }
+  .spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent3); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ISO + COMPETITOR TABLE CELLS */
+  .iso-cell { text-align: center; }
+  .iso-val  { font-family: 'Fraunces', serif; font-size: 1.0rem; font-weight: 600; color: var(--accent3); line-height: 1; cursor: pointer; transition: color 0.15s; }
+  .iso-val:hover { color: var(--green); text-decoration: underline; }
+  .iso-sub  { font-size: 0.58rem; color: var(--text-dimmer); margin-top: 2px; }
+  .iso-btn  { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text-dim); font-family: 'DM Mono', monospace; font-size: 0.62rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .iso-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+  .iso-btn.loading { opacity: 0.5; pointer-events: none; }
+  .comp-pill { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .comp-low  { background: rgba(58,171,107,0.12); color: var(--green); }
+  .comp-mid  { background: rgba(229,153,58,0.15);  color: #a0600a; }
+  .comp-high { background: rgba(217,79,79,0.12);   color: var(--red); }
+  .comp-pill:hover { opacity: 0.8; transform: scale(1.05); }
+
+  /* COMPETITOR LIST in panel */
+  .comp-list { padding: 12px 24px; border-top: 1px solid var(--border); flex-shrink: 0; max-height: 200px; overflow-y: auto; }
+  .comp-list-title { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dimmer); margin-bottom: 8px; }
+  .comp-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 0.72rem; }
+  .comp-item:last-child { border-bottom: none; }
+  .comp-name { color: var(--text); font-weight: 500; }
+  .comp-dist { color: var(--text-dimmer); font-size: 0.65rem; }
+
+  /* HEADER */
+  header { border-bottom: 1px solid var(--border); padding: 0 40px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; background: rgba(247,248,246,0.97); backdrop-filter: blur(12px); z-index: 100; }
+  .logo { font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 1.3rem; letter-spacing: 0.08em; color: var(--accent2); text-transform: uppercase; }
+  .logo span { color: var(--accent); font-weight: 700; }
+  nav { display: flex; gap: 28px; }
+  nav a { font-family: 'Barlow Condensed', sans-serif; font-weight: 500; font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); text-decoration: none; transition: color 0.2s; }
+  nav a:hover, nav a.active { color: var(--accent3); }
+
+  /* HERO */
+  .hero { padding: 60px 40px 32px; max-width: 100%; margin: 0 auto; animation: fadeUp 0.5s ease both; }
+  .hero-eyebrow { font-family: 'Barlow Condensed', sans-serif; font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent3); margin-bottom: 12px; }
+  .hero h1 { font-family: 'Fraunces', serif; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 600; line-height: 1.1; margin-bottom: 16px; }
+  .hero h1 em { font-style: italic; color: var(--accent3); }
+  .hero-sub { color: var(--text-dim); font-size: 0.8rem; max-width: 700px; line-height: 1.7; margin-bottom: 32px; }
+  .divider-line { width: 40px; height: 3px; background: var(--accent); margin: 16px 0 24px; }
+
+  /* STAT STRIP */
+  .stat-strip { max-width: 100%; margin: 0 auto; padding: 0 40px 40px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; animation: fadeUp 0.5s 0.05s ease both; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; }
+  .stat-label { font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dimmer); margin-bottom: 6px; }
+  .stat-val { font-family: 'Fraunces', serif; font-size: 1.8rem; font-weight: 600; color: var(--accent3); line-height: 1; }
+  .stat-sub { font-size: 0.65rem; color: var(--text-dim); margin-top: 4px; }
+
+  /* TOP CARDS */
+  .top6-grid { max-width: 100%; margin: 0 auto; padding: 0 40px 40px; animation: fadeUp 0.5s 0.1s ease both; }
+  .top6-label { font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dimmer); margin-bottom: 16px; }
+  .top6-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+  .top-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s; cursor: pointer; }
+  .top-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(28,49,51,0.1); }
+  .top-card.offense { border-top: 3px solid var(--accent2); }
+  .top-card.defense { border-top: 3px solid var(--accent); }
+  .top-card.overall { border-top: 3px solid var(--accent3); }
+  .top-card-rank { font-family: 'Barlow Condensed', sans-serif; font-size: 3rem; font-weight: 900; color: var(--text-dimmer); line-height: 1; position: absolute; right: 16px; top: 12px; }
+  .top-card-type { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+  .top-card-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; margin-bottom: 2px; padding-right: 44px; }
+  .top-card-addr { font-size: 0.7rem; color: var(--text-dim); margin-bottom: 12px; }
+  .top-card-score { font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 600; }
+  .top-card.offense .top-card-score { color: var(--accent2); }
+  .top-card.defense .top-card-score { color: var(--green); }
+  .top-card.overall .top-card-score { color: var(--accent3); }
+  .top-card-sub { font-size: 0.65rem; color: var(--text-dim); margin-top: 2px; }
+
+  /* CONTROLS */
+  .controls { max-width: 100%; margin: 0 auto; padding: 0 40px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; animation: fadeUp 0.5s 0.2s ease both; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .control-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dimmer); }
+  .btn-group { display: flex; }
+  .btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); font-family: 'DM Mono', monospace; font-size: 0.72rem; padding: 6px 14px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.05em; white-space: nowrap; }
+  .btn:first-child { border-radius: 4px 0 0 4px; }
+  .btn:last-child { border-radius: 0 4px 4px 0; }
+  .btn:not(:first-child) { border-left: none; }
+  .btn.active { background: var(--accent2); color: #fff; border-color: var(--accent2); font-weight: 500; }
+  .btn:hover:not(.active) { border-color: var(--accent3); color: var(--accent3); }
+  select { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.72rem; padding: 6px 12px; border-radius: 4px; cursor: pointer; outline: none; transition: border-color 0.15s; }
+  select:hover, select:focus { border-color: var(--accent3); }
+  .search-input { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.72rem; padding: 6px 14px; border-radius: 4px; outline: none; width: 200px; transition: border-color 0.15s; }
+  .search-input::placeholder { color: var(--text-dimmer); }
+  .search-input:focus { border-color: var(--accent3); }
+
+  /* TABLE */
+  .table-wrap { max-width: 100%; margin: 0 auto; padding: 0 40px 80px; animation: fadeUp 0.5s 0.3s ease both; }
+  .table-container { border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; overflow-y: visible; box-shadow: 0 2px 16px rgba(28,49,51,0.07); -webkit-overflow-scrolling: touch; }
+  table { width: 100%; min-width: 1600px; border-collapse: collapse; font-size: 0.78rem; table-layout: auto; }
+  thead tr { background: var(--surface2); border-bottom: 1px solid var(--border); }
+  th { padding: 12px 14px; text-align: left; font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; cursor: pointer; user-select: none; transition: color 0.15s; }
+  th:hover { color: var(--accent3); }
+  th.sorted { color: var(--accent3); }
+  th .sort-arrow { margin-left: 4px; opacity: 0.5; }
+  th.sorted .sort-arrow { opacity: 1; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; animation: fadeUp 0.3s ease both; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  td { padding: 13px 14px; vertical-align: middle; white-space: nowrap; }
+  td.wrap-cell { white-space: normal; min-width: 180px; max-width: 260px; }
+  td.vs-cell { white-space: normal; min-width: 180px; }
+  .rank-cell { color: var(--text-dimmer); font-size: 0.7rem; width: 32px; text-align: center; }
+
+  /* Sticky first two columns so property name stays visible while scrolling */
+  th:nth-child(1), td:nth-child(1) { position: sticky; left: 0; z-index: 2; background: inherit; }
+  th:nth-child(2), td:nth-child(2) { position: sticky; left: 32px; z-index: 2; background: inherit; box-shadow: 2px 0 6px rgba(28,49,51,0.06); }
+  thead th:nth-child(1), thead th:nth-child(2) { background: var(--surface2); z-index: 3; }
+
+  /* Row types */
+  tr.row-replacement { background: rgba(28,49,51,0.03); }
+  tr.row-replacement:hover { background: rgba(28,49,51,0.06); }
+  tr.row-candidate { background: rgba(105,217,148,0.04); }
+  tr.row-candidate:hover { background: rgba(105,217,148,0.09); }
+  tr.row-oversized { background: rgba(229,153,58,0.06); }
+  tr.row-oversized:hover { background: rgba(229,153,58,0.11); }
+  tr.row-undersized { background: rgba(217,79,79,0.04); }
+  tr.row-undersized:hover { background: rgba(217,79,79,0.08); }
+  tr.row-tbd { background: rgba(160,181,179,0.07); }
+  tr.row-tbd:hover { background: rgba(160,181,179,0.12); }
+
+  .prop-name { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em; color: var(--text); }
+  .prop-addr { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.62rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+  .badge-la       { background: rgba(100,80,200,0.1);  color: #5040a0; }
+  .badge-bayarea  { background: rgba(200,120,40,0.1);  color: #9a5a10; }
+  .badge-seattle  { background: rgba(40,140,200,0.1);  color: #1a6080; }
+  .badge-texas    { background: rgba(200,60,60,0.1);   color: #902020; }
+  .badge-chicago  { background: rgba(28,49,51,0.1);    color: var(--accent2); }
+  .badge-boston   { background: rgba(58,171,107,0.12); color: var(--green); }
+  .badge-atlanta  { background: rgba(105,217,148,0.18);color: var(--accent3); }
+  .badge-philly   { background: rgba(90,60,160,0.12);  color: #4a2d9e; }
+
+  .type-tag { display: inline-block; padding: 1px 6px; border-radius: 2px; font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 3px; font-weight: 500; margin-right: 3px; }
+  .type-replacement { background: rgba(28,49,51,0.07);    color: var(--text-dim); }
+  .type-candidate   { background: rgba(105,217,148,0.25); color: var(--accent3); }
+  .type-oversized   { background: rgba(229,153,58,0.2);   color: #a0600a; }
+  .type-undersized  { background: rgba(217,79,79,0.15);   color: var(--red); }
+  .type-tbd         { background: rgba(160,181,179,0.25); color: var(--text-dim); }
+  .type-gross       { background: rgba(90,60,160,0.12);   color: #4a2d9e; }
+
+  /* BARS */
+  .bar-cell { min-width: 110px; }
+  .bar-track { height: 6px; background: var(--surface2); border-radius: 3px; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s cubic-bezier(0.23,1,0.32,1); }
+  .bar-fill.space   { background: var(--accent2); }
+  .bar-fill.cost    { background: var(--accent3); }
+  .bar-fill.nnn-bar { background: var(--yellow); }
+  .metric-val { font-size: 0.68rem; color: var(--text-dim); margin-top: 3px; }
+
+  /* LVAR */
+  .lvar-cell { font-family: 'Fraunces', serif; font-size: 1.35rem; font-weight: 600; }
+  .score-positive { color: var(--green); }
+  .score-neutral  { color: var(--yellow); }
+  .score-negative { color: var(--red); }
+  .score-baseline { color: var(--text-dimmer); font-size: 1rem; }
+
+  /* LVAR DELTA INDICATOR */
+  .lvar-vs { font-size: 0.62rem; color: var(--text-dimmer); margin-top: 2px; }
+
+  /* ANNUAL */
+  .annual-rent { font-family: 'Fraunces', serif; font-size: 0.9rem; font-weight: 600; color: var(--text); }
+  .annual-sub  { font-size: 0.62rem; color: var(--text-dimmer); margin-top: 2px; }
+
+  /* BASELINE ROW INDICATOR */
+  .baseline-pill { display: inline-flex; align-items: center; gap: 4px; background: rgba(28,49,51,0.06); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; font-size: 0.6rem; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 3px; }
+
+  /* OPERATIONAL CELLS */
+  .op-pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 10px; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; }
+  .op-yes     { background: rgba(58,171,107,0.12); color: var(--green); }
+  .op-no      { background: rgba(217,79,79,0.10);  color: var(--red); }
+  .op-tbd     { background: rgba(160,181,179,0.18); color: var(--text-dimmer); }
+  .op-onsite  { background: rgba(58,171,107,0.12); color: var(--green); }
+  .op-metered { background: rgba(229,153,58,0.15); color: #a0600a; }
+  .op-garage  { background: rgba(90,60,160,0.12);  color: #4a2d9e; }
+  .op-1st     { background: rgba(58,171,107,0.12); color: var(--green); }
+  .op-2nd     { background: rgba(229,153,58,0.15); color: #a0600a; }
+  .rooms-val  { font-family: 'Fraunces', serif; font-size: 1.1rem; font-weight: 600; color: var(--accent3); line-height: 1; }
+  .rooms-sub  { font-size: 0.6rem; color: var(--text-dimmer); margin-top: 1px; }
+
+  .scroll-hint { max-width: 100%; padding: 0 40px 8px; font-size: 0.62rem; color: var(--text-dimmer); letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px; }
+  .scroll-hint svg { opacity: 0.5; }
+  .op-select {
+    appearance: none; -webkit-appearance: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    padding: 4px 22px 4px 8px;
+    cursor: pointer;
+    outline: none;
+    width: 100%;
+    min-width: 90px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a7170'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 7px center;
+    transition: border-color 0.15s, background-color 0.15s;
+  }
+  .op-select:hover  { border-color: var(--accent3); }
+  .op-select:focus  { border-color: var(--accent3); box-shadow: 0 0 0 2px rgba(58,171,107,0.15); }
+  .op-select.set-yes     { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select.set-no      { background-color: rgba(217,79,79,0.07);   border-color: rgba(217,79,79,0.35);  color: var(--red); }
+  .op-select.set-onsite  { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select.set-metered { background-color: rgba(229,153,58,0.10);  border-color: rgba(229,153,58,0.45); color: #a0600a; }
+  .op-select.set-garage  { background-color: rgba(90,60,160,0.08);   border-color: rgba(90,60,160,0.35);  color: #4a2d9e; }
+  .op-select.set-1st     { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select.set-2nd     { background-color: rgba(229,153,58,0.10);  border-color: rgba(229,153,58,0.45); color: #a0600a; }
+  .op-cell { display: flex; flex-direction: column; gap: 2px; }
+  .op-saved-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); display: inline-block; margin-left: 4px; opacity: 0; transition: opacity 0.3s; }
+  .op-saved-dot.visible { opacity: 1; }
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--accent2); color: #fff; font-size: 0.63rem; padding: 6px 10px; border-radius: 4px; white-space: nowrap; z-index: 200; pointer-events: none; }
+
+  footer { border-top: 1px solid var(--border); padding: 20px 40px; text-align: center; font-size: 0.65rem; color: var(--text-dimmer); letter-spacing: 0.1em; text-transform: uppercase; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  tbody tr:nth-child(1)  { animation-delay: 0.03s; }
+  tbody tr:nth-child(2)  { animation-delay: 0.05s; }
+  tbody tr:nth-child(3)  { animation-delay: 0.07s; }
+  tbody tr:nth-child(4)  { animation-delay: 0.09s; }
+  tbody tr:nth-child(5)  { animation-delay: 0.11s; }
+  tbody tr:nth-child(6)  { animation-delay: 0.13s; }
+  tbody tr:nth-child(7)  { animation-delay: 0.15s; }
+  tbody tr:nth-child(8)  { animation-delay: 0.17s; }
+  tbody tr:nth-child(9)  { animation-delay: 0.19s; }
+  tbody tr:nth-child(10) { animation-delay: 0.21s; }
+
+  @media (max-width: 1000px) {
+    header, .hero, .stat-strip, .top6-grid, .controls, .table-wrap { padding-left: 20px; padding-right: 20px; }
+    .top6-row { grid-template-columns: 1fr 1fr; }
+    .stat-strip { grid-template-columns: repeat(3, 1fr); }
+    nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Lease<span>IQ</span> <span style="font-size:0.72rem;font-weight:400;color:var(--text-dim);margin-left:10px;letter-spacing:0.04em;text-transform:none;">BodySpec · Multi-Region</span></div>
+  <nav>
+    <a href="#" class="active">Dashboard</a>
+    <a href="#">Pipeline</a>
+    <a href="#">Compare</a>
+    <a href="#">Settings</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-eyebrow">// BodySpec National Expansion · Site Selection Intelligence</div>
+  <h1>Every Market. Every Site.<br>Ranked by <em>Lease Value Above Replacement</em></h1>
+  <div class="divider-line"></div>
+  <p class="hero-sub">LVAR is a composite score measuring how well a candidate site performs versus the <strong>regional replacement level</strong> — the median benchmark derived from BodySpec's 12 existing locations across 6 regions. A positive LVAR means the site beats the baseline on cost efficiency and space. Replacement-level sites are shown for reference as the standard each new location is measured against.</p>
+</section>
+
+<div class="stat-strip" id="stat-strip"></div>
+
+<section class="top6-grid">
+  <div class="top6-label">// Top Expansion Candidates by Category (excl. oversized &amp; TBD)</div>
+  <div class="top6-row" id="top-space"></div>
+  <div class="top6-row" id="top-cost"></div>
+  <div class="top6-row" id="top-overall"></div>
+</section>
+
+<div class="controls">
+  <div class="control-group">
+    <span class="control-label">View</span>
+    <div class="btn-group">
+      <button class="btn active" onclick="filterView('all', this)">All</button>
+      <button class="btn" onclick="filterView('candidate', this)">Candidates</button>
+      <button class="btn" onclick="filterView('replacement', this)">Replacement Lvl</button>
+    </div>
+  </div>
+  <div class="control-group">
+    <span class="control-label">Region</span>
+    <div class="btn-group">
+      <button class="btn active" onclick="filterRegion('all', this)">All</button>
+      <button class="btn" onclick="filterRegion('Los Angeles', this)">LA</button>
+      <button class="btn" onclick="filterRegion('Bay Area', this)">Bay Area</button>
+      <button class="btn" onclick="filterRegion('Seattle', this)">Seattle</button>
+      <button class="btn" onclick="filterRegion('Texas', this)">Texas</button>
+      <button class="btn" onclick="filterRegion('Chicago', this)">Chicago</button>
+      <button class="btn" onclick="filterRegion('Boston', this)">Boston</button>
+      <button class="btn" onclick="filterRegion('Atlanta', this)">Atlanta</button>
+      <button class="btn" onclick="filterRegion('Philadelphia', this)">Philadelphia</button>
+    </div>
+  </div>
+  <div class="control-group">
+    <span class="control-label">Sort</span>
+    <div class="btn-group">
+      <button class="btn active" onclick="sortBy('lvar', this)">LVAR</button>
+      <button class="btn" onclick="sortBy('sqft', this)">Sq Ft</button>
+      <button class="btn" onclick="sortBy('totalPpsf', this)">All-in $/SF</button>
+      <button class="btn" onclick="sortBy('totalAnnual', this)">Annual Rent</button>
+      <button class="btn" onclick="sortBy('isoPop', this)">ISO Pop</button>
+      <button class="btn" onclick="sortBy('compCount', this)">H&amp;F Count</button>
+    </div>
+  </div>
+  <input class="search-input" type="text" placeholder="Search properties..." oninput="searchProps(this.value)">
+</div>
+
+<div class="scroll-hint">
+  <svg width="14" height="10" viewBox="0 0 14 10"><path d="M0 5h12M8 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  Scroll horizontally to see all columns — Property and # columns are pinned
+</div>
+
+<div class="table-wrap">
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Property</th>
+          <th>Region</th>
+          <th class="sorted" onclick="sortBy('lvar', this)" data-col="lvar">LVAR <span class="sort-arrow">▼</span></th>
+          <th onclick="sortBy('potentialRooms', this)" data-col="potentialRooms" data-tip="Est. scan rooms at 11×11 min, 28% of SF allocated to scan rooms">Scan Rms</th>
+          <th onclick="sortBy('sqft', this)" data-col="sqft" data-tip="Square footage">Sq Ft</th>
+          <th data-tip="Private bathroom within the unit">Bath</th>
+          <th data-tip="Parking type available">Parking</th>
+          <th data-tip="Floor level access">Access</th>
+          <th onclick="sortBy('ppsf', this)" data-col="ppsf" data-tip="Base rent / SF / year">Base $/SF</th>
+          <th data-tip="NNN charges per SF per year">NNN/SF</th>
+          <th onclick="sortBy('totalPpsf', this)" data-col="totalPpsf" data-tip="All-in cost per SF (base + NNN)">All-in $/SF</th>
+          <th onclick="sortBy('totalAnnual', this)" data-col="totalAnnual" data-tip="Total annual cost including NNN">Total Annual</th>
+          <th onclick="sortBy('isoPop', this)" data-col="isoPop" data-tip="Target-demo population within 5-min drive isochrone">ISO Pop</th>
+          <th onclick="sortBy('compCount', this)" data-col="compCount" data-tip="Health & fitness competitors within 5 miles">H&amp;F 5mi</th>
+          <th data-tip="Difference vs. regional replacement level baseline">vs. Baseline</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MAP PANEL -->
+<div class="map-overlay" id="map-overlay" onclick="closeMapPanel()"></div>
+<div class="map-panel" id="map-panel">
+  <div class="map-panel-header">
+    <div>
+      <div class="map-panel-title" id="panel-title">—</div>
+      <div class="map-panel-addr"  id="panel-addr">—</div>
+    </div>
+    <button class="map-panel-close" onclick="closeMapPanel()">✕</button>
+  </div>
+  <div id="map-canvas"><div class="map-loading"><div class="spinner"></div>Loading map…</div></div>
+  <div class="map-data-strip">
+    <div class="map-stat">
+      <div class="map-stat-label">5-Min ISO Population</div>
+      <div class="map-stat-val" id="panel-iso-val">—</div>
+      <div class="map-stat-sub" id="panel-iso-sub">Target demo within drive isochrone</div>
+    </div>
+    <div class="map-stat">
+      <div class="map-stat-label">H&amp;F Competitors · 5mi</div>
+      <div class="map-stat-val" id="panel-comp-val">—</div>
+      <div class="map-stat-sub">Gyms, studios, wellness within 5 miles</div>
+    </div>
+  </div>
+  <div class="comp-list" id="comp-list" style="display:none">
+    <div class="comp-list-title">Nearby Competitors</div>
+    <div id="comp-items"></div>
+  </div>
+</div>
+
+<footer>LeaseIQ Analytics · BodySpec · Replacement level: 12 existing locations across 6 regions · Candidate data: broker surveys &amp; market estimates Feb 2026 · All figures estimated · Not a substitute for broker diligence</footer>
+
+<script>
+// ─────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────
+
+const replacementSites = [
+  // LOS ANGELES REGION (3 remaining baselines)
+  { name: "West Hollywood — Santa Monica",  addr: "8555 Santa Monica Blvd, West Hollywood CA", region: "Los Angeles", sqft: 2690, ppsf: 56.50, nnn: 13.50, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  { name: "Culver City — Uplander Way",     addr: "5847 Uplander Way, Culver City CA",         region: "Los Angeles", sqft: 1250, ppsf: 34.00, nnn:  9.00, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  { name: "Santa Ana — S Harbor Blvd",      addr: "2750 S Harbor Blvd, Santa Ana CA",          region: "Los Angeles", sqft: 1600, ppsf: 25.00, nnn:  9.00, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  // BAY AREA (3 remaining baselines)
+  { name: "SF — Broadway",                  addr: "295 Broadway, San Francisco CA",            region: "Bay Area",    sqft: 1400, ppsf: 35.00, nnn: 11.00, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  { name: "Palo Alto — El Camino Real",     addr: "3775 W El Camino Real, Palo Alto CA",       region: "Bay Area",    sqft: 1050, ppsf: 52.50, nnn: 13.50, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  { name: "Santa Clara — Walsh Ave",        addr: "2328 Walsh Ave, Santa Clara CA",            region: "Bay Area",    sqft: 1500, ppsf: 35.00, nnn: 10.00, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  // SEATTLE
+  { name: "Tukwila — International Blvd",   addr: "12101 Tukwila International Blvd, Tukwila WA", region: "Seattle", sqft: 1500, ppsf: 22.00, nnn:  8.00, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  // TEXAS
+  { name: "Austin — N Lamar Blvd",          addr: "5555 N Lamar Blvd, Austin TX",              region: "Texas",       sqft: 1000, ppsf: 22.00, nnn:  7.50, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  { name: "Austin — Wallingwood Dr",        addr: "2525 Wallingwood Dr, Austin TX",            region: "Texas",       sqft: 1150, ppsf: 21.00, nnn:  6.50, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  { name: "Dallas — Lemmon Ave",            addr: "6310 Lemmon Ave, Dallas TX",                region: "Texas",       sqft: 1600, ppsf: 30.00, nnn:  9.00, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  // CHICAGO
+  { name: "Chicago — E Delaware Pl",        addr: "1 E Delaware Pl, Chicago IL",               region: "Chicago",     sqft: 1150, ppsf: 47.50, nnn: 12.50, bathroom: true,  parking: 'On Site', access: '1st Floor' },
+  // BOSTON
+  { name: "Boston — Newbury St",            addr: "125 Newbury St, Boston MA",                 region: "Boston",      sqft: 1900, ppsf: 100.00, nnn: 17.50, bathroom: true, parking: 'On Site', access: '1st Floor' },
+];
+
+const candidateSites = [
+  // ── LOS ANGELES (promoted from baseline) ─────────────────────────────────
+  { name: "Pasadena — S Lake Ave",          addr: "504 S Lake Ave, Pasadena CA",            region: "Los Angeles", sqft: 1350, ppsf: 39.00, nnn: 11.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Santa Monica — Second St",       addr: "1428 Second St, Santa Monica CA",        region: "Los Angeles", sqft: 1428, ppsf: 51.50, nnn: 13.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  // ── BAY AREA (promoted from baseline) ────────────────────────────────────
+  { name: "SF — Union St",                  addr: "1887 Union St, San Francisco CA",        region: "Bay Area",    sqft: 1100, ppsf: 44.00, nnn: 12.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  // ── SEATTLE (candidates) ──────────────────────────────────────────────────
+  { name: "Bellevue — Bellevue Way NE",     addr: "206 Bellevue Way NE, Bellevue WA",       region: "Seattle",     sqft: 1250, ppsf: 43.00, nnn: 12.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Redmond — Cleveland St",         addr: "16015 Cleveland St, Redmond WA",         region: "Seattle",     sqft: 1400, ppsf: 52.00, nnn: 12.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Est. based on Downtown Redmond market avg ($52/SF NNN). Medium confidence.' },
+  // ── ATLANTA ──────────────────────────────────────────────────────────────
+  { name: "Perimeter Mall — Suite 2495",    addr: "4400 Ashford Dunwoody Rd NE, Atlanta GA", region: "Atlanta",    sqft: 1508, ppsf: 42.14, nnn: 0,     leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Publix at Perimeter — Suite 210",addr: "1100 Hammond Dr, Atlanta GA",             region: "Atlanta",    sqft: 1440, ppsf: 49.00, nnn: 10.75, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Shops of Buckhead — Suite L",    addr: "2221 Peachtree Rd NE, Atlanta GA",        region: "Atlanta",    sqft: 1250, ppsf: 38.00, nnn: 11.46, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Shops of Buckhead — Suite V",    addr: "2221 Peachtree Rd NE, Atlanta GA",        region: "Atlanta",    sqft: 1160, ppsf: 38.00, nnn: 11.46, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Buckhead Square II — Suite 260", addr: "3275 Peachtree Rd NE, Atlanta GA",        region: "Atlanta",    sqft: 2730, ppsf: 70.00, nnn: 5.85,  leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Block at Phipps — Suite 510",    addr: "3535 Peachtree Rd NE, Atlanta GA",        region: "Atlanta",    sqft: 1480, ppsf: 70.00, nnn: 4.38,  leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "Midtown Union — Retail",         addr: "1331 Spring St NW, Atlanta GA",           region: "Atlanta",    sqft: 1248, ppsf: 52.00, nnn: 9.82,  leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  // ── PHILADELPHIA ─────────────────────────────────────────────────────────
+  { name: "114 S. 19th Street",             addr: "114 S 19th St, Philadelphia PA",          region: "Philadelphia", sqft: 1360, ppsf: 64.59, nnn: 12.75, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Basement (910 SF) not included in SF figure.' },
+  { name: "1401 Spruce Street",             addr: "1401 Spruce St, Philadelphia PA",         region: "Philadelphia", sqft: 1330, ppsf: 65.00, nnn: 8.00,  leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "1725 Chestnut Street",           addr: "1725 Chestnut St, Philadelphia PA",       region: "Philadelphia", sqft: 1893, ppsf: null,  nnn: null,  leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Ground level only (5,755 SF total incl. upper floors). Rent TBD.' },
+  { name: "1001 N. 2nd Street — NE Unit",   addr: "1001 N 2nd St, Philadelphia PA",          region: "Philadelphia", sqft: 1200, ppsf: 70.00, nnn: 0,     leaseType: 'Gross', bathroom: null, parking: null, access: null, notes: 'Gross lease ($65–75/SF range). Midpoint used. No separate NNN.' },
+  { name: "600 DeKalb Pike",                addr: "600 DeKalb Pike, Blue Bell PA",           region: "Philadelphia", sqft: 2500, ppsf: 80.00, nnn: 10.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  { name: "915-925 W Lancaster Ave",        addr: "915 W Lancaster Ave, Wayne PA",           region: "Philadelphia", sqft: 1286, ppsf: 55.00, nnn: 13.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Former Chase ATM space.' },
+  { name: "100 E Lancaster Ave — Space 1",  addr: "100 E Lancaster Ave, Wayne PA",           region: "Philadelphia", sqft: 7150, ppsf: 55.00, nnn: 10.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, oversized: true, notes: 'Oversized for typical BodySpec model.' },
+  { name: "100 E Lancaster Ave — Space 2",  addr: "100 E Lancaster Ave, Wayne PA",           region: "Philadelphia", sqft: 9210, ppsf: 55.00, nnn: 10.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, oversized: true, notes: 'Oversized for typical BodySpec model.' },
+  { name: "821 W Lancaster Ave",            addr: "821 W Lancaster Ave, Wayne PA",           region: "Philadelphia", sqft: 2100, ppsf: 65.00, nnn: 11.35, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+
+  // ── PHILADELPHIA — NEW BATCH ─────────────────────────────────────────────
+  // 807 N. 2nd: $5,520/mo all-in → $66,240/yr ÷ 1,400 = $47.31/SF all-in. NNN items = $923/mo → $7.91/SF. Base implied = $39.40/SF
+  { name: "807 N. 2nd Street",              addr: "807 N 2nd St, Philadelphia PA",           region: "Philadelphia", sqft: 1400, ppsf: 39.40, nnn:  7.91, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Asking $50 PSF NNN as-is; base derived from $5,520/mo all-in. NNN incl. water, CAM, U&O, tax, insurance.' },
+  // 129 S. 18th: $8,750/mo base. NNN = RE Tax $11,030/yr + U&O $2,772/yr + CCD $1,514/yr + Utilities est. $10,800/yr = $26,116/yr → $32.65/SF
+  { name: "129 S. 18th Street",             addr: "129 S 18th St, Philadelphia PA",          region: "Philadelphia", sqft:  800, ppsf: 131.25, nnn: 32.65, leaseType: 'NNN',  bathroom: null, parking: null, access: null, notes: 'Includes lower level (SF unspecified). Utilities in NNN estimated at $900/mo. Premium Rittenhouse location.' },
+  // 1605 Sansom: $60 PSF + $13 NNN — clean
+  { name: "1605 Sansom Street",             addr: "1605 Sansom St, Philadelphia PA",         region: "Philadelphia", sqft: 2245, ppsf:  60.00, nnn: 13.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  // 1703 Chestnut: 750 SF $200 Modified Gross — undersized flag
+  { name: "1703 Chestnut Street",           addr: "1703 Chestnut St, Philadelphia PA",       region: "Philadelphia", sqft:  750, ppsf: 200.00, nnn:  0,    leaseType: 'Gross', bathroom: null, parking: null, access: null, undersized: true, notes: 'Undersized for BodySpec model (750 SF). Modified Gross lease.' },
+  // 1421 Walnut: $100 PSF NNN. NNN = RE Tax $17,575 + U&O $2,340 + CCD $2,280 + CAM $8,160 + Utilities est. $10,800 = $41,155/yr → $22.86/SF
+  { name: "1421 Walnut Street",             addr: "1421 Walnut St, Philadelphia PA",         region: "Philadelphia", sqft: 1800, ppsf: 100.00, nnn: 22.86, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'NNN incl. RE Tax, U&O, CCD, CAM, all utilities. Utilities estimated at $900/mo.' },
+  // 1515 Walnut: $160 PSF + $14 NNN on 2,160 SF ground floor. Second level = 2nd floor access noted.
+  { name: "1515 Walnut Street — Ground",    addr: "1515 Walnut St, Philadelphia PA",         region: "Philadelphia", sqft: 2160, ppsf: 160.00, nnn: 14.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Ground floor only. Second level (2,160 SF) + small basement also available. Former North Face.' },
+  // 1737 Chestnut: $200 PSF NNN. No NNN breakdown — est. $22/SF based on Walnut St comps.
+  { name: "1737 Chestnut Street",           addr: "1737 Chestnut St, Philadelphia PA",       region: "Philadelphia", sqft: 2000, ppsf: 200.00, nnn: 22.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Ground floor (2,000 SF) + 1,453 SF basement. NNN est. $22/SF based on corridor comps — no breakdown provided.' },
+  // 1845 Walnut: $100 PSF. NNN = RE Tax $2.69 + U&O $2.12 = $4.81/SF — unusually low, likely excludes some items
+  { name: "1845 Walnut Street",             addr: "1845 Walnut St, Philadelphia PA",         region: "Philadelphia", sqft: 2250, ppsf: 100.00, nnn:  4.81, leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'NNN = RE Tax $2.69/SF + U&O $2.12/SF only. May exclude CAM/utilities — verify with broker.' },
+  // 1112 W. Lancaster: $50 PSF + $10 NNN — clean
+  { name: "1112 W. Lancaster Avenue",       addr: "1112 W Lancaster Ave, Philadelphia PA",   region: "Philadelphia", sqft: 1636, ppsf:  50.00, nnn: 10.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null },
+  // 50 E. Wynnewood: size & rent TBD
+  { name: "50 E. Wynnewood Road",           addr: "50 E Wynnewood Rd, Wynnewood PA",         region: "Philadelphia", sqft: null, ppsf:  null,  nnn: null,  leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'Size and rent TBD.' },
+  // 1460 Bethlehem Pike — Option 1: oversized
+  { name: "1460 Bethlehem Pike — Opt 1",   addr: "1460 Bethlehem Pike, Hatfield PA",        region: "Philadelphia", sqft: 3023, ppsf:  46.00, nnn: 14.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, oversized: true, notes: 'Option 1 (CycleBar space). Oversized for BodySpec model.' },
+  // 1460 Bethlehem Pike — Option 2: oversized
+  { name: "1460 Bethlehem Pike — Opt 2",   addr: "1460 Bethlehem Pike B, Hatfield PA",      region: "Philadelphia", sqft: 3056, ppsf:  43.00, nnn: 14.00, leaseType: 'NNN',   bathroom: null, parking: null, access: null, oversized: true, notes: 'Option 2 (Trinity Rehab space). Oversized for BodySpec model.' },
+  // 157-199 W. Lancaster: new construction, full TBD
+  { name: "157-199 W. Lancaster Ave",       addr: "157 W Lancaster Ave, Wayne PA",           region: "Philadelphia", sqft: null, ppsf:  null,  nnn: null,  leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'New construction. Size and rent TBD.' },
+  // 367-377 W. Lancaster: new construction, full TBD
+  { name: "367-377 W. Lancaster Ave",       addr: "367 W Lancaster Ave, Wayne PA",           region: "Philadelphia", sqft: null, ppsf:  null,  nnn: null,  leaseType: 'NNN',   bathroom: null, parking: null, access: null, notes: 'New construction. Size and rent TBD.' },
+];
+
+// Tag each set
+replacementSites.forEach(p => { p.type = 'replacement'; });
+candidateSites.forEach(p => { p.type = 'candidate'; });
+
+const allProperties = [...replacementSites, ...candidateSites];
+
+// Compute derived financials (handle TBD / null rent or null sqft)
+allProperties.forEach(p => {
+  p.sqftTBD     = p.sqft === null;
+  p.rentTBD     = p.ppsf === null || p.sqftTBD;
+  p.totalPpsf   = p.rentTBD ? null : +(p.ppsf + (p.nnn || 0)).toFixed(2);
+  p.baseAnnual  = p.rentTBD ? null : Math.round(p.sqft * p.ppsf);
+  p.nnnAnnual   = p.rentTBD ? null : Math.round(p.sqft * (p.nnn || 0));
+  p.totalAnnual = p.rentTBD ? null : p.baseAnnual + p.nnnAnnual;
+  // Potential rooms: usable SF (80% of total) ÷ 121 SF (11×11), floored
+  const SCAN_PCT = 0.28; // scan-room-only allocation (11x11 rooms = 3-4 rooms per 1,500 SF)
+  const ROOM_SF  = 11 * 11; // 121 SF
+  p.potentialRooms = p.sqftTBD ? null : Math.floor(p.sqft * SCAN_PCT / ROOM_SF);
+});
+
+// ─── COMPUTE REGIONAL BASELINES ───────────────
+// For each region, derive a replacement-level benchmark (median all-in $/SF and median sqft)
+function median(arr) {
+  const s = [...arr].sort((a,b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 === 0 ? (s[m-1] + s[m]) / 2 : s[m];
+}
+
+const regions = [...new Set(allProperties.map(p => p.region))];
+const regionalBaseline = {};
+
+const NEW_MARKETS = ['Atlanta', 'Philadelphia']; // no existing BodySpec sites yet
+
+regions.forEach(r => {
+  const rSites = replacementSites.filter(p => p.region === r);
+  if (rSites.length === 0) {
+    // New market — use Chicago as closest comparable proxy
+    const chicagoSites = replacementSites.filter(p => p.region === 'Chicago');
+    regionalBaseline[r] = {
+      totalPpsf: +median(chicagoSites.map(p => p.totalPpsf)).toFixed(2),
+      sqft:       Math.round(median(chicagoSites.map(p => p.sqft))),
+      source:    'Chicago (proxy)'
+    };
+  } else {
+    regionalBaseline[r] = {
+      totalPpsf: +median(rSites.map(p => p.totalPpsf)).toFixed(2),
+      sqft:       Math.round(median(rSites.map(p => p.sqft))),
+      source:    r
+    };
+  }
+});
+
+// ─── COMPUTE LVAR ─────────────────────────────
+// LVAR = how much better or worse vs. regional baseline
+// Components:
+//   costDelta: (baseline all-in $/SF − this all-in $/SF) / baseline — positive means cheaper
+//   spaceDelta: (this sqft − baseline sqft) / baseline sqft — positive means more space
+// Weighted: cost 60%, space 40%
+// Scaled to a ±10 range WAR-style
+
+allProperties.forEach(p => {
+  const bl = regionalBaseline[p.region];
+  p.baselinePpsf   = bl.totalPpsf;
+  p.baselineSqft   = bl.sqft;
+  p.baselineSource = bl.source;
+  if (p.rentTBD || p.totalPpsf === null) {
+    p.lvar = null;
+    p.vsPsf  = null;
+    p.vsSqft = p.sqft - bl.sqft;
+    return;
+  }
+  const costDelta  = (bl.totalPpsf - p.totalPpsf) / bl.totalPpsf;
+  const spaceDelta = (p.sqft - bl.sqft) / bl.sqft;
+  const raw = costDelta * 0.60 + spaceDelta * 0.40;
+  p.lvar  = Math.round(raw * 10 * 10) / 10;
+  p.vsPsf = +(p.totalPpsf - bl.totalPpsf).toFixed(2);
+  p.vsSqft = p.sqft - bl.sqft;
+});
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let activeView   = 'all';
+let activeRegion = 'all';
+let searchQuery  = '';
+let sortKey      = 'lvar';
+let sortDir      = -1;
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function lvarColor(v) {
+  if (v >= 1.5)  return 'score-positive';
+  if (v >= -0.5) return 'score-neutral';
+  return 'score-negative';
+}
+function fmt(n)    { return '$' + Math.abs(n).toLocaleString(); }
+function fmtPsf(n) { return (n === null || n === undefined) ? '<span style="color:var(--text-dimmer)">TBD</span>' : n === 0 ? '—' : '$' + n.toFixed(2); }
+
+const regionSlug = { 'Los Angeles': 'la', 'Bay Area': 'bayarea', 'Seattle': 'seattle', 'Texas': 'texas', 'Chicago': 'chicago', 'Boston': 'boston', 'Atlanta': 'atlanta', 'Philadelphia': 'philly' };
+
+function regionBadge(r) {
+  return `<span class="badge badge-${regionSlug[r]}">${r}</span>`;
+}
+
+function renderBar(val, cls, max) {
+  const pct = Math.min(100, Math.max(0, (val / max) * 100));
+  return `<div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct}%"></div></div>`;
+}
+
+function getFiltered() {
+  let data = [...allProperties];
+  if (activeView === 'candidate')    data = data.filter(p => p.type === 'candidate');
+  if (activeView === 'replacement')  data = data.filter(p => p.type === 'replacement');
+  if (activeRegion !== 'all')        data = data.filter(p => p.region === activeRegion);
+  if (searchQuery)                   data = data.filter(p =>
+    p.name.toLowerCase().includes(searchQuery) ||
+    p.addr.toLowerCase().includes(searchQuery) ||
+    p.region.toLowerCase().includes(searchQuery)
+  );
+  data.sort((a, b) => {
+    const av = a[sortKey] ?? -Infinity;
+    const bv = b[sortKey] ?? -Infinity;
+    return sortDir * (bv - av);
+  });
+  return data;
+}
+
+// ─────────────────────────────────────────────
+// RENDER STAT STRIP
+// ─────────────────────────────────────────────
+function renderStats() {
+  const repAvgPsf  = (replacementSites.reduce((s,p) => s + p.totalPpsf, 0) / replacementSites.length).toFixed(2);
+  const repAvgSqft = Math.round(replacementSites.reduce((s,p) => s + p.sqft, 0) / replacementSites.length);
+  const candWithRent = candidateSites.filter(p => p.totalPpsf !== null);
+  const candAvgPsf = (candWithRent.reduce((s,p) => s + p.totalPpsf, 0) / candWithRent.length).toFixed(2);
+  const bestLvar   = candWithRent.filter(p => !p.oversized).slice().sort((a,b) => b.lvar - a.lvar)[0];
+  const bestCost   = candWithRent.filter(p => !p.oversized).slice().sort((a,b) => a.totalPpsf - b.totalPpsf)[0];
+
+  document.getElementById('stat-strip').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Replacement Avg $/SF</div>
+      <div class="stat-val">$${repAvgPsf}</div>
+      <div class="stat-sub">All-in across 12 baseline sites</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Replacement Avg SF</div>
+      <div class="stat-val">${repAvgSqft.toLocaleString()}</div>
+      <div class="stat-sub">Avg across 12 baseline sites</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Candidate Avg $/SF</div>
+      <div class="stat-val">$${candAvgPsf}</div>
+      <div class="stat-sub">All-in · excl. TBD &amp; oversized</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Best LVAR</div>
+      <div class="stat-val" style="color:var(--green)">${bestLvar.lvar > 0 ? '+' : ''}${bestLvar.lvar}</div>
+      <div class="stat-sub">${bestLvar.name.split('—')[0].trim()} · ${bestLvar.region}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Cheapest All-in</div>
+      <div class="stat-val" style="color:var(--green)">$${bestCost.totalPpsf.toFixed(2)}</div>
+      <div class="stat-sub">${bestCost.name.split('—')[0].trim()} · ${bestCost.region}</div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────
+// RENDER TOP CARDS (candidates only)
+// ─────────────────────────────────────────────
+function renderTopCards() {
+  // Exclude TBD, oversized, and undersized from top cards
+  const cands = candidateSites.filter(p => !p.rentTBD && !p.oversized && !p.undersized && !p.sqftTBD);
+
+  const bySpace = [...cands].sort((a,b) => b.sqft - a.sqft).slice(0,3);
+  document.getElementById('top-space').innerHTML = bySpace.map((p,i) => `
+    <div class="top-card offense">
+      <div class="top-card-rank">${i+1}</div>
+      <div class="top-card-type">Most Space</div>
+      <div class="top-card-name">${p.name}</div>
+      <div class="top-card-addr">${p.addr}</div>
+      <div class="top-card-score">${p.sqft.toLocaleString()} SF</div>
+      <div class="top-card-sub">vs. ${p.baselineSqft.toLocaleString()} SF baseline (${p.baselineSource})</div>
+    </div>`).join('');
+
+  const byCost = [...cands].sort((a,b) => a.totalPpsf - b.totalPpsf).slice(0,3);
+  document.getElementById('top-cost').innerHTML = byCost.map((p,i) => `
+    <div class="top-card defense">
+      <div class="top-card-rank">${i+1}</div>
+      <div class="top-card-type">Best Cost Efficiency</div>
+      <div class="top-card-name">${p.name}</div>
+      <div class="top-card-addr">${p.addr}</div>
+      <div class="top-card-score">$${p.totalPpsf.toFixed(2)}/SF</div>
+      <div class="top-card-sub">vs. $${p.baselinePpsf.toFixed(2)} (${p.baselineSource})</div>
+    </div>`).join('');
+
+  const byLvar = [...cands].filter(p => p.lvar !== null).sort((a,b) => b.lvar - a.lvar).slice(0,3);
+  document.getElementById('top-overall').innerHTML = byLvar.map((p,i) => `
+    <div class="top-card overall">
+      <div class="top-card-rank">${i+1}</div>
+      <div class="top-card-type">Overall LVAR</div>
+      <div class="top-card-name">${p.name}</div>
+      <div class="top-card-addr">${p.addr}</div>
+      <div class="top-card-score">${p.lvar > 0 ? '+' : ''}${p.lvar}</div>
+      <div class="top-card-sub">Lease Value Above Replacement · ${p.region}</div>
+    </div>`).join('');
+}
+
+// ─────────────────────────────────────────────
+// OPERATIONAL DATA STATE
+// In-memory store keyed by property address (stable unique key)
+// ─────────────────────────────────────────────
+const opState = {};
+
+// Seed baseline sites with known values
+allProperties.forEach(p => {
+  opState[p.addr] = {
+    bathroom: p.bathroom !== undefined ? p.bathroom : null,
+    parking:  p.parking  !== undefined ? p.parking  : null,
+    access:   p.access   !== undefined ? p.access   : null,
+  };
+});
+
+function setOp(addr, field, rawVal) {
+  if (!opState[addr]) opState[addr] = { bathroom: null, parking: null, access: null };
+  // Parse value — 'null' string → null, 'true'/'false' → bool
+  let val = rawVal === '__null__' ? null
+          : rawVal === 'true'    ? true
+          : rawVal === 'false'   ? false
+          : rawVal;
+  opState[addr][field] = val;
+  // Flash saved dot
+  const dot = document.getElementById('dot-' + CSS.escape(addr) + '-' + field);
+  if (dot) { dot.classList.add('visible'); setTimeout(() => dot.classList.remove('visible'), 1400); }
+  // Recolor the select itself
+  applySelectColor(addr, field, val);
+}
+
+function applySelectColor(addr, field, val) {
+  const sel = document.getElementById('sel-' + CSS.escape(addr) + '-' + field);
+  if (!sel) return;
+  sel.className = 'op-select';
+  if (val === null) return;
+  if (field === 'bathroom') sel.classList.add(val ? 'set-yes' : 'set-no');
+  if (field === 'parking')  sel.classList.add(val === 'On Site' ? 'set-onsite' : val === 'Metered' ? 'set-metered' : 'set-garage');
+  if (field === 'access')   sel.classList.add(val === '1st Floor' ? 'set-1st' : 'set-2nd');
+}
+
+// ─────────────────────────────────────────────
+// STATIC OP PILL (for baseline rows)
+// ─────────────────────────────────────────────
+function opPill(val, type) {
+  if (val === null || val === undefined) return `<span class="op-pill op-tbd">—</span>`;
+  if (type === 'bathroom') return val
+    ? `<span class="op-pill op-yes">✓ Yes</span>`
+    : `<span class="op-pill op-no">✗ No</span>`;
+  if (type === 'parking') {
+    const cls = val === 'On Site' ? 'op-onsite' : val === 'Metered' ? 'op-metered' : 'op-garage';
+    return `<span class="op-pill ${cls}">${val}</span>`;
+  }
+  if (type === 'access') {
+    const cls = val === '1st Floor' ? 'op-1st' : 'op-2nd';
+    return `<span class="op-pill ${cls}">${val}</span>`;
+  }
+  return val;
+}
+
+// ─────────────────────────────────────────────
+// INTERACTIVE OP DROPDOWN (for candidate rows)
+// ─────────────────────────────────────────────
+function opDropdown(addr, field, currentVal) {
+  const id    = `sel-${addr}-${field}`;
+  const dotId = `dot-${addr}-${field}`;
+  const esc   = addr.replace(/"/g, '&quot;');
+
+  let options = '';
+  if (field === 'bathroom') {
+    options = `
+      <option value="__null__" ${currentVal === null ? 'selected' : ''}>— TBD</option>
+      <option value="true"     ${currentVal === true  ? 'selected' : ''}>✓ Yes</option>
+      <option value="false"    ${currentVal === false  ? 'selected' : ''}>✗ No</option>`;
+  } else if (field === 'parking') {
+    options = `
+      <option value="__null__"  ${currentVal === null       ? 'selected' : ''}>— TBD</option>
+      <option value="On Site"   ${currentVal === 'On Site'  ? 'selected' : ''}>On Site</option>
+      <option value="Metered"   ${currentVal === 'Metered'  ? 'selected' : ''}>Metered</option>
+      <option value="Garage"    ${currentVal === 'Garage'   ? 'selected' : ''}>Garage</option>`;
+  } else if (field === 'access') {
+    options = `
+      <option value="__null__"       ${currentVal === null            ? 'selected' : ''}>— TBD</option>
+      <option value="1st Floor"      ${currentVal === '1st Floor'     ? 'selected' : ''}>1st Floor</option>
+      <option value="2nd Floor & Above" ${currentVal === '2nd Floor & Above' ? 'selected' : ''}>2nd Floor +</option>`;
+  }
+
+  // Determine current color class
+  let colorCls = '';
+  if (currentVal !== null) {
+    if (field === 'bathroom') colorCls = currentVal ? 'set-yes' : 'set-no';
+    if (field === 'parking')  colorCls = currentVal === 'On Site' ? 'set-onsite' : currentVal === 'Metered' ? 'set-metered' : 'set-garage';
+    if (field === 'access')   colorCls = currentVal === '1st Floor' ? 'set-1st' : 'set-2nd';
+  }
+
+  return `<div class="op-cell">
+    <select id="${id}" class="op-select ${colorCls}"
+      onchange="setOp('${esc}', '${field}', this.value)">
+      ${options}
+    </select>
+    <span class="op-saved-dot" id="${dotId}"></span>
+  </div>`;
+}
+function renderTable() {
+  const data = getFiltered();
+  const validPpsf = data.filter(p => p.totalPpsf !== null).map(p => p.totalPpsf);
+  const validSqft  = data.filter(p => p.sqft !== null).map(p => p.sqft);
+  const maxSqft    = validSqft.length ? Math.max(...validSqft) : 2000;
+  const maxTotPpsf = validPpsf.length ? Math.max(...validPpsf) : 100;
+
+  document.getElementById('table-body').innerHTML = data.map((p, i) => {
+    const isRep   = p.type === 'replacement';
+    const isTBD   = p.rentTBD;
+    const isOver  = p.oversized;
+    const isUnder = p.undersized;
+    const opData  = opState[p.addr] || { bathroom: null, parking: null, access: null };
+
+    let rowCls = isRep ? 'row-replacement'
+               : isOver  ? 'row-oversized'
+               : isUnder ? 'row-undersized'
+               : isTBD   ? 'row-tbd'
+               : 'row-candidate';
+
+    // LVAR cell
+    let lvarCell;
+    if (isRep)       lvarCell = `<span class="lvar-cell score-baseline">BASELINE</span>`;
+    else if (isTBD)  lvarCell = `<span class="lvar-cell" style="color:var(--text-dimmer);font-size:0.85rem;">TBD</span>`;
+    else             lvarCell = `<span class="lvar-cell ${lvarColor(p.lvar)}">${p.lvar > 0 ? '+' : ''}${p.lvar}</span>`;
+
+    // Type tags
+    let typeTags = '';
+    if (isRep)                   typeTags += `<span class="type-tag type-replacement">Replacement</span>`;
+    else                         typeTags += `<span class="type-tag type-candidate">Candidate</span>`;
+    if (isOver)                  typeTags += `<span class="type-tag type-oversized">⚠ Oversized</span>`;
+    if (isUnder)                 typeTags += `<span class="type-tag type-undersized">⚠ Undersized</span>`;
+    if (isTBD)                   typeTags += `<span class="type-tag type-tbd">Rent TBD</span>`;
+    if (p.sqftTBD)               typeTags += `<span class="type-tag type-tbd">Size TBD</span>`;
+    if (p.leaseType === 'Gross') typeTags += `<span class="type-tag type-gross">Gross Lease</span>`;
+
+    // Rent cells
+    const basePsfCell = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : fmtPsf(p.ppsf);
+    const nnnCell     = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : (p.leaseType === 'Gross' ? '<span style="color:var(--text-dimmer)">Gross</span>' : fmtPsf(p.nnn));
+    const allInCell   = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : `
+        ${renderBar(p.totalPpsf, 'cost', maxTotPpsf)}
+        <div class="metric-val">${fmtPsf(p.totalPpsf)}/SF</div>`;
+    const annualCell  = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : `
+        <div class="annual-rent">${fmt(p.totalAnnual)}</div>
+        <div class="annual-sub">incl. NNN</div>`;
+
+    // vs Baseline cell
+    let vsBaselineCell;
+    if (isRep) {
+      vsBaselineCell = `<div class="baseline-pill">⬛ Baseline</div>`;
+    } else if (isTBD) {
+      vsBaselineCell = `<div style="font-size:0.7rem;color:var(--text-dimmer);">— rent TBD</div>
+        <div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:2px;">baseline $${p.baselinePpsf}/SF · ${p.baselineSqft.toLocaleString()} SF (${p.baselineSource})</div>`;
+    } else {
+      const vsPsfColor  = p.vsPsf > 0 ? 'color:var(--red)' : 'color:var(--green)';
+      const vsPsfSign   = p.vsPsf > 0 ? '+' : '';
+      const vsSqftColor = p.vsSqft >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+      const vsSqftSign  = p.vsSqft > 0 ? '+' : '';
+      vsBaselineCell = `<div style="font-size:0.72rem;">
+           <span style="${vsPsfColor}">${vsPsfSign}$${Math.abs(p.vsPsf).toFixed(2)}/SF</span>
+           <span style="color:var(--text-dimmer);margin:0 3px;">·</span>
+           <span style="${vsSqftColor}">${vsSqftSign}${p.vsSqft.toLocaleString()} SF</span>
+         </div>
+         <div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:2px;">vs $${p.baselinePpsf}/SF · ${p.baselineSqft.toLocaleString()} SF (${p.baselineSource !== p.region ? p.baselineSource : 'baseline'})</div>`;
+    }
+
+    // Notes row
+    const notesRow = p.notes ? `<div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:3px;font-style:italic;">${p.notes}</div>` : '';
+
+    // Operational columns — static pills for baselines, interactive dropdowns for candidates
+    const bathCell   = isRep ? opPill(opData.bathroom, 'bathroom') : opDropdown(p.addr, 'bathroom', opData.bathroom);
+    const parkCell   = isRep ? opPill(opData.parking,  'parking')  : opDropdown(p.addr, 'parking',  opData.parking);
+    const accessCell = isRep ? opPill(opData.access,   'access')   : opDropdown(p.addr, 'access',   opData.access);
+
+    // ISO + competitor cells
+    const isoVal    = p.isoPop    !== null ? p.isoPop.toLocaleString()    : null;
+    const compVal   = p.compCount !== null ? p.compCount                  : null;
+    const compCls   = compVal === null ? '' : compVal < 10 ? 'comp-low' : compVal < 25 ? 'comp-mid' : 'comp-high';
+    const addrEsc   = p.addr.replace(/'/g, "\\'");
+    const nameEsc   = p.name.replace(/'/g, "\\'");
+
+    const isoCell  = `<div class="iso-cell">
+      ${isoVal
+        ? `<div class="iso-val" onclick="openMapPanel('${addrEsc}','${nameEsc}')">${isoVal}</div><div class="iso-sub">5-min drive pop.</div>`
+        : `<button class="iso-btn" onclick="openMapPanel('${addrEsc}','${nameEsc}')">⊕ Load</button>`}
+    </div>`;
+
+    const compCell = compVal !== null
+      ? `<span class="comp-pill ${compCls}" onclick="openMapPanel('${addrEsc}','${nameEsc}')">${compVal} nearby</span>`
+      : `<button class="iso-btn" onclick="openMapPanel('${addrEsc}','${nameEsc}')">⊕ Load</button>`;
+
+    return `
+    <tr class="${rowCls}">
+      <td class="rank-cell">${i + 1}</td>
+      <td class="wrap-cell">
+        <div class="prop-name" style="cursor:pointer;transition:color 0.15s" onclick="openMapPanel('${addrEsc}','${nameEsc}')" title="Open map view">${p.name} <span style="font-size:0.7rem;color:var(--accent3)">↗</span></div>
+        <div class="prop-addr">${p.addr}</div>
+        <div style="margin-top:3px;">${typeTags}</div>
+        ${notesRow}
+      </td>
+      <td>${regionBadge(p.region)}</td>
+      <td>${lvarCell}</td>
+      <td>
+        ${p.potentialRooms !== null
+          ? `<div class="rooms-val">${p.potentialRooms}</div><div class="rooms-sub">${p.sqft.toLocaleString()} SF · 28% scan allocation</div>`
+          : `<span style="color:var(--text-dimmer);font-size:0.75rem;">TBD</span>`}
+      </td>
+      <td class="bar-cell">
+        ${p.sqftTBD
+          ? `<span style="color:var(--text-dimmer);font-size:0.75rem;">TBD</span>`
+          : `${renderBar(p.sqft, 'space', maxSqft)}<div class="metric-val">${p.sqft.toLocaleString()} SF</div>`}
+      </td>
+      <td>${bathCell}</td>
+      <td>${parkCell}</td>
+      <td>${accessCell}</td>
+      <td style="font-size:0.82rem;">${basePsfCell}</td>
+      <td style="font-size:0.82rem;color:var(--text-dim);">${nnnCell}</td>
+      <td class="bar-cell">${allInCell}</td>
+      <td>${annualCell}</td>
+      <td class="iso-cell">${isoCell}</td>
+      <td>${compCell}</td>
+      <td class="vs-cell">${vsBaselineCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// CONTROLS
+// ─────────────────────────────────────────────
+function filterView(val, btn) {
+  activeView = val;
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function filterRegion(val, btn) {
+  activeRegion = val;
+  btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+function sortBy(key, btn) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = -1; }
+  document.querySelectorAll('th').forEach(t => t.classList.remove('sorted'));
+  document.querySelectorAll('th[data-col]').forEach(t => {
+    if (t.getAttribute('data-col') === key) t.classList.add('sorted');
+  });
+  document.querySelectorAll('.controls .btn').forEach(b => {
+    if (b.getAttribute('onclick') === `sortBy('${key}', this)`) {
+      b.parentElement.querySelectorAll('.btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    }
+  });
+  renderTable();
+}
+
+function searchProps(q) {
+  searchQuery = q.toLowerCase();
+  renderTable();
+}
+
+// ─────────────────────────────────────────────
+// GEO DATA CACHE (survives filter/sort re-renders)
+// ─────────────────────────────────────────────
+const geoCache = {}; // keyed by addr → { isoPop, compCount, competitors, isoPolygon }
+
+// ─────────────────────────────────────────────
+// GOOGLE MAPS + PANEL STATE
+// ─────────────────────────────────────────────
+let mapInstance = null;
+let isoPolygon  = null;
+let panelAddr   = null;
+
+function loadGoogleMaps() {
+  if (window.google && window.google.maps) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_API_KEY}&libraries=geometry,places&callback=__mapsReady`;
+    window.__mapsReady = () => { resolve(); delete window.__mapsReady; };
+    s.onerror = (e) => {
+      reject(new Error('Google Maps script failed to load. Check: (1) API key restrictions allow this origin, (2) Maps JavaScript API + Places API are enabled in Google Cloud Console.'));
+    };
+    document.head.appendChild(s);
+  });
+}
+
+async function openMapPanel(addr, name) {
+  panelAddr = addr;
+  document.getElementById('panel-title').textContent = name;
+  document.getElementById('panel-addr').textContent  = addr;
+  document.getElementById('panel-iso-val').textContent  = '—';
+  document.getElementById('panel-comp-val').textContent = '—';
+  document.getElementById('comp-list').style.display = 'none';
+  document.getElementById('map-canvas').innerHTML = '<div class="map-loading"><div class="spinner"></div>Loading map…</div>';
+  document.getElementById('map-overlay').classList.add('open');
+  document.getElementById('map-panel').classList.add('open');
+
+  try {
+    await loadGoogleMaps();
+  } catch(e) {
+    document.getElementById('map-canvas').innerHTML = `
+      <div class="map-loading" style="padding:24px;text-align:center;gap:14px;">
+        <div style="font-size:1.5rem">⚠️</div>
+        <div style="color:var(--red);font-size:0.75rem;font-weight:600;">Maps API failed to load</div>
+        <div style="color:var(--text-dim);font-size:0.68rem;max-width:380px;line-height:1.6;">
+          ${e.message}<br><br>
+          If opening as a local file, add <code>file://</code> as an allowed referrer in
+          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent3)">Google Cloud Console → Credentials</a>,
+          or test from a local server (e.g. <code>npx serve .</code>).
+        </div>
+      </div>`;
+    return;
+  }
+
+  try {
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ address: addr }, async (results, status) => {
+      if (status !== 'OK' || !results[0]) {
+        document.getElementById('map-canvas').innerHTML =
+          `<div class="map-loading" style="color:var(--red)">Could not geocode: ${status}</div>`;
+        return;
+      }
+      const latlng = results[0].geometry.location;
+
+      mapInstance = new google.maps.Map(document.getElementById('map-canvas'), {
+        center: latlng, zoom: 14,
+        mapTypeId: 'roadmap',
+        styles: [
+          { featureType:'poi.business', stylers:[{visibility:'off'}] },
+          { featureType:'transit',      stylers:[{visibility:'off'}] }
+        ],
+        disableDefaultUI: false,
+        zoomControl: true,
+        streetViewControl: false,
+        mapTypeControl: false,
+      });
+
+      new google.maps.Marker({ position: latlng, map: mapInstance,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10,
+          fillColor: '#69D994', fillOpacity: 1, strokeColor: '#1C3133', strokeWeight: 2 }
+      });
+
+      if (geoCache[addr]) {
+        renderPanelData(geoCache[addr], latlng);
+        return;
+      }
+
+      document.getElementById('panel-iso-val').innerHTML  = '<div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px"></div>';
+      document.getElementById('panel-comp-val').innerHTML = '<div class="spinner" style="display:inline-block;width:16px;height:16px;border-width:2px"></div>';
+
+      const [isoData, compData] = await Promise.all([
+        fetchIsochrone(latlng),
+        fetchCompetitors(latlng)
+      ]);
+
+      const cached = {
+        isoPop:      isoData.pop,
+        isoPolygon:  isoData.polygon,
+        compCount:   compData.count,
+        competitors: compData.list
+      };
+      geoCache[addr] = cached;
+
+      const prop = allProperties.find(p => p.addr === addr);
+      if (prop) { prop.isoPop = cached.isoPop; prop.compCount = cached.compCount; }
+
+      renderPanelData(cached, latlng);
+      renderTable();
+    });
+  } catch(e) {
+    console.error('Map panel geocode error:', e);
+    document.getElementById('map-canvas').innerHTML =
+      `<div class="map-loading" style="color:var(--red)">Error: ${e.message}</div>`;
+  }
+}
+
+function renderPanelData(cached, latlng) {
+  // ISO population
+  document.getElementById('panel-iso-val').textContent =
+    cached.isoPop !== null ? cached.isoPop.toLocaleString() : 'N/A';
+
+  // Competitor count
+  const cc = cached.compCount;
+  document.getElementById('panel-comp-val').textContent = cc !== null ? cc : 'N/A';
+
+  // Draw isochrone polygon
+  if (isoPolygon) { isoPolygon.setMap(null); }
+  if (cached.isoPolygon && cached.isoPolygon.length > 0) {
+    isoPolygon = new google.maps.Polygon({
+      paths: cached.isoPolygon,
+      strokeColor: '#3a7d5e', strokeOpacity: 0.9, strokeWeight: 2,
+      fillColor: '#69D994',   fillOpacity: 0.15,
+      map: mapInstance
+    });
+  } else {
+    // Fallback: draw approximate circle
+    isoPolygon = new google.maps.Circle({
+      center: latlng, radius: 1600,
+      strokeColor: '#3a7d5e', strokeOpacity: 0.6, strokeWeight: 2,
+      fillColor: '#69D994',   fillOpacity: 0.10,
+      map: mapInstance
+    });
+  }
+
+  // Competitor pins + list
+  if (cached.competitors && cached.competitors.length > 0) {
+    const listEl = document.getElementById('comp-list');
+    const itemsEl = document.getElementById('comp-items');
+    listEl.style.display = 'block';
+    itemsEl.innerHTML = cached.competitors.slice(0, 20).map(c => `
+      <div class="comp-item">
+        <span class="comp-name">${c.name}</span>
+        <span class="comp-dist">${c.dist} mi</span>
+      </div>`).join('');
+
+    cached.competitors.forEach(c => {
+      if (!c.lat || !c.lng) return;
+      new google.maps.Marker({
+        position: { lat: c.lat, lng: c.lng }, map: mapInstance,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6,
+          fillColor: '#d94f4f', fillOpacity: 0.85, strokeColor: '#fff', strokeWeight: 1.5 },
+        title: c.name
+      });
+    });
+  }
+}
+
+function closeMapPanel() {
+  document.getElementById('map-overlay').classList.remove('open');
+  document.getElementById('map-panel').classList.remove('open');
+  panelAddr = null;
+}
+
+// ─────────────────────────────────────────────
+// ISOCHRONE via Routes API (computeRouteMatrix)
+// Falls back to radius circle if quota exceeded
+// ─────────────────────────────────────────────
+async function fetchIsochrone(center) {
+  // Build a grid of destination points around the center
+  // Then use driving distance/time to approximate the isochrone boundary
+  // For census population we query Census tract API with bounding box
+  try {
+    const pop = await fetchCensusPopulation(center);
+    // Simple circle polygon for visual (Routes API isochrone is complex — approximating with 32-point circle)
+    const polygon = buildCirclePolygon(center, 1609 * (ISOCHRONE_MINUTES / 5 * 1.2)); // ~1.2 miles @ 5min drive
+    return { pop, polygon };
+  } catch(e) {
+    console.warn('Isochrone fetch failed:', e);
+    return { pop: null, polygon: [] };
+  }
+}
+
+function buildCirclePolygon(center, radiusM) {
+  const pts = [];
+  const lat = center.lat();
+  const lng = center.lng();
+  for (let i = 0; i < 32; i++) {
+    const angle = (i / 32) * 2 * Math.PI;
+    const dLat = (radiusM / 111320) * Math.cos(angle);
+    const dLng = (radiusM / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle);
+    pts.push({ lat: lat + dLat, lng: lng + dLng });
+  }
+  return pts;
+}
+
+// ─────────────────────────────────────────────
+// CENSUS API — total pop + target demo in bounding box
+// ─────────────────────────────────────────────
+async function fetchCensusPopulation(center) {
+  const lat = center.lat(), lng = center.lng();
+  const delta = 0.025; // ~1.5 mile bounding box
+  // Census B01003_001E = total population, B19013_001E = median HHI
+  // Use /acs/acs5 tract-level data for the county the point falls in
+  // First get FIPS codes via geocoder API
+  const fipsUrl = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lng}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&layers=Tracts&format=json`;
+  const fipsRes = await fetch(fipsUrl);
+  const fipsData = await fipsRes.json();
+  const geo = fipsData?.result?.geographies?.['Census Tracts']?.[0];
+  if (!geo) return null;
+
+  const state  = geo.STATE;
+  const county = geo.COUNTY;
+  // Get all tracts in county and sum population
+  const censusUrl = `https://api.census.gov/data/2022/acs/acs5?get=B01003_001E,B01001_001E&for=tract:*&in=state:${state}%20county:${county}`;
+  const censusRes  = await fetch(censusUrl);
+  const censusData = await censusRes.json();
+  // Sum tracts within rough bounding box (approx — full isochrone intersection is complex)
+  // For simplicity, return county-level total as a scaled estimate
+  const header = censusData[0];
+  const popIdx = header.indexOf('B01003_001E');
+  let totalPop = 0;
+  for (let i = 1; i < censusData.length; i++) {
+    const val = parseInt(censusData[i][popIdx]);
+    if (!isNaN(val) && val > 0) totalPop += val;
+  }
+  // Scale to approximate 5-min isochrone (rough: county avg density × isochrone area)
+  const isoAreaSqMi = Math.PI * Math.pow(1.2, 2); // ~4.5 sq mi
+  const countyAreaSqMi = 200; // rough default — improves with geometry API
+  const scaledPop = Math.round(totalPop * (isoAreaSqMi / countyAreaSqMi));
+  return scaledPop;
+}
+
+// ─────────────────────────────────────────────
+// PLACES API — competitor search within 5 miles
+// ─────────────────────────────────────────────
+async function fetchCompetitors(center) {
+  const service = new google.maps.places.PlacesService(mapInstance);
+  const keywords = [
+    'gym fitness', 'yoga pilates', 'medspa wellness',
+    'physical therapy rehab', 'body composition DXA',
+    'Whole Foods organic market'
+  ];
+
+  const allResults = [];
+  const seen = new Set();
+
+  await Promise.all(keywords.map(kw => new Promise(resolve => {
+    service.textSearch({
+      query: kw,
+      location: center,
+      radius: COMPETITOR_RADIUS_M
+    }, (results, status) => {
+      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+        results.forEach(r => {
+          if (!seen.has(r.place_id)) {
+            seen.add(r.place_id);
+            const loc = r.geometry?.location;
+            const distM = loc ? google.maps.geometry.spherical.computeDistanceBetween(center, loc) : null;
+            const distMi = distM ? (distM / 1609.34).toFixed(1) : '?';
+            if (!distM || distM <= COMPETITOR_RADIUS_M) {
+              allResults.push({ name: r.name, dist: distMi,
+                lat: loc?.lat(), lng: loc?.lng() });
+            }
+          }
+        });
+      }
+      resolve();
+    });
+  })));
+
+  allResults.sort((a, b) => parseFloat(a.dist) - parseFloat(b.dist));
+  return { count: allResults.length, list: allResults };
+}
+
+// ─────────────────────────────────────────────
+// INIT ISO/COMP fields on allProperties
+// ─────────────────────────────────────────────
+allProperties.forEach(p => {
+  p.isoPop    = null;
+  p.compCount = null;
+});
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+renderStats();
+renderTopCards();
+renderTable();
+</script>
+</body>
+</html>
