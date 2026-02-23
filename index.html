@@ -149,7 +149,7 @@ const COMPETITOR_KEYWORDS = [
   /* TABLE */
   .table-wrap { max-width: 100%; margin: 0 auto; padding: 0 40px 80px; animation: fadeUp 0.5s 0.3s ease both; }
   .table-container { border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; overflow-y: visible; box-shadow: 0 2px 16px rgba(28,49,51,0.07); -webkit-overflow-scrolling: touch; }
-  table { width: 100%; min-width: 1600px; border-collapse: collapse; font-size: 0.78rem; table-layout: auto; }
+  table { width: 100%; min-width: 1900px; border-collapse: collapse; font-size: 0.78rem; table-layout: auto; }
   thead tr { background: var(--surface2); border-bottom: 1px solid var(--border); }
   th { padding: 12px 14px; text-align: left; font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; cursor: pointer; user-select: none; transition: color 0.15s; }
   th:hover { color: var(--accent3); }
@@ -242,8 +242,123 @@ const COMPETITOR_KEYWORDS = [
   .rooms-val  { font-family: 'Fraunces', serif; font-size: 1.1rem; font-weight: 600; color: var(--accent3); line-height: 1; }
   .rooms-sub  { font-size: 0.6rem; color: var(--text-dimmer); margin-top: 1px; }
 
-  .scroll-hint { max-width: 100%; padding: 0 40px 8px; font-size: 0.62rem; color: var(--text-dimmer); letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px; }
+  .scroll-hint { max-width: 100%; padding: 0 40px 8px; font-size: 0.62rem; color: var(--text-dimmer); letter-spacing: 0.08em; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .scroll-hint-left { display: flex; align-items: center; gap: 6px; }
   .scroll-hint svg { opacity: 0.5; }
+  .scroll-hint-cols { font-size: 0.6rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 2px 8px; color: var(--text-dimmer); letter-spacing: 0.06em; }
+
+  /* Right-fade shadow on table when scrollable */
+  .table-container { position: relative; }
+  .table-scroll-fade {
+    position: absolute; top: 0; right: 0; width: 60px; height: 100%;
+    background: linear-gradient(to right, transparent, rgba(247,248,246,0.92));
+    pointer-events: none; z-index: 10; border-radius: 0 10px 10px 0;
+    transition: opacity 0.2s;
+  }
+  .table-scroll-fade.hidden { opacity: 0; }
+
+  /* ADD PROPERTY FORM */
+  .add-prop-bar { max-width: 100%; padding: 0 40px 20px; }
+  .add-prop-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px; border: 1px dashed var(--border); border-radius: 6px; background: var(--surface); color: var(--text-dim); font-family: 'DM Mono', monospace; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; letter-spacing: 0.04em; }
+  .add-prop-toggle:hover { border-color: var(--accent3); color: var(--accent3); background: rgba(58,125,94,0.04); }
+  .add-prop-toggle .plus { font-size: 1rem; line-height: 1; color: var(--accent); }
+  .add-prop-form { display: none; margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; box-shadow: 0 2px 16px rgba(28,49,51,0.07); animation: fadeUp 0.2s ease both; }
+  .add-prop-form.open { display: block; }
+  .add-prop-form-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent2); margin-bottom: 16px; }
+  .add-prop-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
+  .add-prop-field { display: flex; flex-direction: column; gap: 5px; }
+  .add-prop-label { font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dimmer); }
+  .add-prop-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.75rem; padding: 8px 12px; border-radius: 6px; outline: none; transition: border-color 0.15s; width: 100%; }
+  .add-prop-input:focus { border-color: var(--accent3); box-shadow: 0 0 0 2px rgba(58,125,94,0.12); }
+  .add-prop-input::placeholder { color: var(--text-dimmer); }
+  .add-prop-select { background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.75rem; padding: 8px 12px; border-radius: 6px; outline: none; transition: border-color 0.15s; width: 100%; cursor: pointer; }
+  .add-prop-select:focus { border-color: var(--accent3); }
+  .add-prop-submit { padding: 8px 20px; background: var(--accent2); color: #fff; border: none; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 0.72rem; cursor: pointer; white-space: nowrap; transition: background 0.15s; letter-spacing: 0.04em; }
+  .add-prop-submit:hover { background: var(--accent3); }
+  .add-prop-hint { font-size: 0.63rem; color: var(--text-dimmer); margin-top: 10px; line-height: 1.6; }
+
+  /* BASELINE TOGGLE in row */
+  .type-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; }
+  .type-toggle-opt { padding: 2px 7px; transition: all 0.15s; color: var(--text-dimmer); background: var(--surface); }
+  .type-toggle-opt.active-cand { background: rgba(105,217,148,0.25); color: var(--accent3); }
+  .type-toggle-opt.active-base { background: rgba(28,49,51,0.08); color: var(--accent2); }
+  /* SITE SPECS POPOVER */
+  .specs-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-dim); font-family: 'DM Mono', monospace; font-size: 0.65rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; position: relative; }
+  .specs-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+  .specs-btn.has-data { border-color: rgba(58,171,107,0.45); color: var(--accent3); background: rgba(58,171,107,0.05); }
+  .specs-btn .specs-dots { display: flex; gap: 2px; align-items: center; }
+  .specs-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+  .specs-dot.filled { background: var(--accent3); }
+
+  .specs-popover {
+    position: fixed; z-index: 600;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+    box-shadow: 0 8px 32px rgba(28,49,51,0.18);
+    min-width: 220px; display: none;
+    animation: fadeUp 0.15s ease both;
+  }
+  .specs-popover.open { display: block; }
+  .specs-popover-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .specs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .specs-row:last-child { margin-bottom: 0; }
+  .specs-label { font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dimmer); white-space: nowrap; min-width: 68px; }
+
+  /* STATUS COLUMN */
+  .status-cell { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
+  .status-select { appearance: none; -webkit-appearance: none; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 4px 24px 4px 8px; cursor: pointer; outline: none; width: 100%; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a7170'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 6px center; transition: all 0.15s; }
+  .status-select:hover { border-color: var(--accent3); }
+  .status-select.st-reviewed     { background-color: rgba(160,181,179,0.15); border-color: rgba(160,181,179,0.5); color: var(--text-dim); }
+  .status-select.st-tourpending  { background-color: rgba(229,153,58,0.10);  border-color: rgba(229,153,58,0.45); color: #a0600a; }
+  .status-select.st-toured       { background-color: rgba(58,125,94,0.10);   border-color: rgba(58,125,94,0.4);   color: var(--accent3); }
+  .status-select.st-leased       { background-color: rgba(58,171,107,0.15);  border-color: rgba(58,171,107,0.6);  color: var(--green); font-weight: 600; }
+  .promote-btn { display: none; padding: 4px 10px; background: var(--accent2); color: #fff; border: none; border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 0.6rem; cursor: pointer; letter-spacing: 0.04em; transition: background 0.15s; white-space: nowrap; }
+  .promote-btn:hover { background: var(--accent3); }
+  .promote-btn.visible { display: inline-block; }
+  .editable-cell { position: relative; display: inline-flex; align-items: center; gap: 5px; }
+  .edit-icon { opacity: 0; font-size: 0.65rem; color: var(--text-dimmer); cursor: pointer; transition: opacity 0.15s, color 0.15s; padding: 1px 3px; border-radius: 3px; line-height: 1; }
+  tr:hover .edit-icon { opacity: 1; }
+  .edit-icon:hover { color: var(--accent3); }
+  .edit-inline-wrap { display: none; align-items: center; gap: 4px; }
+  .edit-inline-wrap.active { display: inline-flex; }
+  .edit-inline-input { background: var(--bg); border: 1px solid var(--accent3); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.75rem; padding: 3px 7px; border-radius: 5px; outline: none; width: 80px; box-shadow: 0 0 0 2px rgba(58,125,94,0.12); }
+  .edit-confirm { background: var(--accent3); border: none; color: #fff; border-radius: 4px; padding: 3px 7px; font-size: 0.65rem; cursor: pointer; font-family: 'DM Mono', monospace; }
+  .edit-cancel  { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; padding: 3px 6px; font-size: 0.65rem; cursor: pointer; }
+
+  /* WIDER DROPDOWNS for Prior Use & Build-Out */
+  .op-select-wide {
+    appearance: none; -webkit-appearance: none;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 0.68rem;
+    padding: 4px 26px 4px 8px; cursor: pointer; outline: none;
+    width: 100%; min-width: 130px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a7170'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 7px center;
+    transition: border-color 0.15s, background-color 0.15s;
+  }
+  .op-select-wide:hover { border-color: var(--accent3); }
+  .op-select-wide:focus { border-color: var(--accent3); box-shadow: 0 0 0 2px rgba(58,171,107,0.15); }
+  /* Prior Use states */
+  .op-select-wide.pu-1stgen    { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select-wide.pu-gym       { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select-wide.pu-ptclinic  { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select-wide.pu-medspa    { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select-wide.pu-restaurant{ background-color: rgba(229,153,58,0.10);  border-color: rgba(229,153,58,0.45); color: #a0600a; }
+  .op-select-wide.pu-coffee    { background-color: rgba(229,153,58,0.10);  border-color: rgba(229,153,58,0.45); color: #a0600a; }
+  .op-select-wide.pu-jeweler   { background-color: rgba(160,181,179,0.18); border-color: rgba(160,181,179,0.4); color: var(--text-dim); }
+  .op-select-wide.pu-other     { background-color: rgba(160,181,179,0.18); border-color: rgba(160,181,179,0.4); color: var(--text-dim); }
+  /* Build-Out states */
+  .op-select-wide.bo-builtrooms { background-color: rgba(58,171,107,0.08);  border-color: rgba(58,171,107,0.4);  color: var(--green); }
+  .op-select-wide.bo-builtnrooms{ background-color: rgba(229,153,58,0.10);  border-color: rgba(229,153,58,0.45); color: #a0600a; }
+  .op-select-wide.bo-shell      { background-color: rgba(217,79,79,0.07);   border-color: rgba(217,79,79,0.35);  color: var(--red); }
+  .op-select-wide.bo-minwork    { background-color: rgba(229,153,58,0.10);  border-color: rgba(229,153,58,0.45); color: #a0600a; }
+  .op-select-wide.bo-alotwork   { background-color: rgba(217,79,79,0.07);   border-color: rgba(217,79,79,0.35);  color: var(--red); }
+
+  .op-select-wide.op-saved-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); display: inline-block; margin-left: 4px; opacity: 0; transition: opacity 0.3s; }
+
+  .op-cell-wide { display: flex; flex-direction: column; gap: 2px; min-width: 130px; }
+
   .op-select {
     appearance: none; -webkit-appearance: none;
     border: 1px solid var(--border);
@@ -338,7 +453,7 @@ const COMPETITOR_KEYWORDS = [
   </div>
   <div class="control-group">
     <span class="control-label">Region</span>
-    <div class="btn-group">
+    <div class="btn-group" data-region-group>
       <button class="btn active" onclick="filterRegion('all', this)">All</button>
       <button class="btn" onclick="filterRegion('Los Angeles', this)">LA</button>
       <button class="btn" onclick="filterRegion('Bay Area', this)">Bay Area</button>
@@ -364,13 +479,64 @@ const COMPETITOR_KEYWORDS = [
   <input class="search-input" type="text" placeholder="Search properties..." oninput="searchProps(this.value)">
 </div>
 
+<div class="add-prop-bar">
+  <button class="add-prop-toggle" onclick="toggleAddForm()">
+    <span class="plus">+</span> Add Property
+  </button>
+  <div class="add-prop-form" id="add-prop-form">
+    <div class="add-prop-form-title">Add New Property</div>
+    <div class="add-prop-row">
+      <div class="add-prop-field">
+        <label class="add-prop-label">Full Address</label>
+        <input class="add-prop-input" id="new-addr" placeholder="e.g. 123 Main St, Philadelphia PA" autocomplete="off">
+      </div>
+      <div class="add-prop-field">
+        <label class="add-prop-label">Property Name</label>
+        <input class="add-prop-input" id="new-name" placeholder="e.g. 123 Main St">
+      </div>
+      <div class="add-prop-field">
+        <label class="add-prop-label">Region</label>
+        <select class="add-prop-select" id="new-region" onchange="handleRegionSelect(this)">
+          <option value="Los Angeles">Los Angeles</option>
+          <option value="Bay Area">Bay Area</option>
+          <option value="Seattle">Seattle</option>
+          <option value="Texas">Texas</option>
+          <option value="Chicago">Chicago</option>
+          <option value="Boston">Boston</option>
+          <option value="Atlanta">Atlanta</option>
+          <option value="Philadelphia" selected>Philadelphia</option>
+          <option value="__new__">+ New region…</option>
+        </select>
+        <input class="add-prop-input" id="new-region-custom" placeholder="Region name"
+          style="display:none;margin-top:6px;" autocomplete="off">
+      </div>
+      <div class="add-prop-field">
+        <label class="add-prop-label">Initial Type</label>
+        <select class="add-prop-select" id="new-type">
+          <option value="candidate">Candidate</option>
+          <option value="replacement">Baseline</option>
+        </select>
+      </div>
+      <button class="add-prop-submit" onclick="addProperty()">Add →</button>
+    </div>
+    <div class="add-prop-hint">
+      ℹ Rent, SF, NNN, and operational fields will be editable directly in the table row after adding. 
+      You can also promote or demote a site between Candidate and Baseline using the toggle in the row.
+    </div>
+  </div>
+</div>
+
 <div class="scroll-hint">
-  <svg width="14" height="10" viewBox="0 0 14 10"><path d="M0 5h12M8 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  Scroll horizontally to see all columns — Property and # columns are pinned
+  <div class="scroll-hint-left">
+    <svg width="14" height="10" viewBox="0 0 14 10"><path d="M0 5h12M8 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Scroll horizontally to see all columns — # and Property are pinned
+  </div>
+  <span class="scroll-hint-cols">14 columns</span>
 </div>
 
 <div class="table-wrap">
-  <div class="table-container">
+  <div class="table-container" id="table-container">
+    <div class="table-scroll-fade" id="scroll-fade"></div>
     <table>
       <thead>
         <tr>
@@ -378,11 +544,9 @@ const COMPETITOR_KEYWORDS = [
           <th>Property</th>
           <th>Region</th>
           <th class="sorted" onclick="sortBy('lvar', this)" data-col="lvar">LVAR <span class="sort-arrow">▼</span></th>
-          <th onclick="sortBy('potentialRooms', this)" data-col="potentialRooms" data-tip="Est. scan rooms at 11×11 min, 28% of SF allocated to scan rooms">Scan Rms</th>
+          <th data-tip="Restroom, Parking, Access, Prior Use, Build-Out">Site Specs</th>
+          <th onclick="sortBy('potentialRooms', this)" data-col="potentialRooms" data-tip="Est. scan rooms at 11×11 min, 28% of SF allocated to scan rooms">Est. Scan Rms</th>
           <th onclick="sortBy('sqft', this)" data-col="sqft" data-tip="Square footage">Sq Ft</th>
-          <th data-tip="Private bathroom within the unit">Bath</th>
-          <th data-tip="Parking type available">Parking</th>
-          <th data-tip="Floor level access">Access</th>
           <th onclick="sortBy('ppsf', this)" data-col="ppsf" data-tip="Base rent / SF / year">Base $/SF</th>
           <th data-tip="NNN charges per SF per year">NNN/SF</th>
           <th onclick="sortBy('totalPpsf', this)" data-col="totalPpsf" data-tip="All-in cost per SF (base + NNN)">All-in $/SF</th>
@@ -390,11 +554,18 @@ const COMPETITOR_KEYWORDS = [
           <th onclick="sortBy('isoPop', this)" data-col="isoPop" data-tip="Target-demo population within 5-min drive isochrone">ISO Pop</th>
           <th onclick="sortBy('compCount', this)" data-col="compCount" data-tip="Health & fitness competitors within 5 miles">H&amp;F 5mi</th>
           <th data-tip="Difference vs. regional replacement level baseline">vs. Baseline</th>
+          <th data-tip="Site review and leasing status">Status</th>
         </tr>
       </thead>
       <tbody id="table-body"></tbody>
     </table>
   </div>
+</div>
+
+<!-- SITE SPECS POPOVER -->
+<div class="specs-popover" id="specs-popover">
+  <div class="specs-popover-title" id="specs-popover-title">Site Specs</div>
+  <div id="specs-popover-body"></div>
 </div>
 
 <!-- MAP PANEL -->
@@ -518,6 +689,10 @@ replacementSites.forEach(p => { p.type = 'replacement'; });
 candidateSites.forEach(p => { p.type = 'candidate'; });
 
 const allProperties = [...replacementSites, ...candidateSites];
+
+// Working lists — mutable, used by Add Property feature
+let baselineSites     = [...replacementSites];
+let workingCandidates = [...candidateSites];
 
 // Compute derived financials (handle TBD / null rent or null sqft)
 allProperties.forEach(p => {
@@ -647,7 +822,7 @@ function getFiltered() {
 function renderStats() {
   const repAvgPsf  = (replacementSites.reduce((s,p) => s + p.totalPpsf, 0) / replacementSites.length).toFixed(2);
   const repAvgSqft = Math.round(replacementSites.reduce((s,p) => s + p.sqft, 0) / replacementSites.length);
-  const candWithRent = candidateSites.filter(p => p.totalPpsf !== null);
+  const candWithRent = workingCandidates.filter(p => p.totalPpsf !== null);
   const candAvgPsf = (candWithRent.reduce((s,p) => s + p.totalPpsf, 0) / candWithRent.length).toFixed(2);
   const bestLvar   = candWithRent.filter(p => !p.oversized).slice().sort((a,b) => b.lvar - a.lvar)[0];
   const bestCost   = candWithRent.filter(p => !p.oversized).slice().sort((a,b) => a.totalPpsf - b.totalPpsf)[0];
@@ -686,7 +861,7 @@ function renderStats() {
 // ─────────────────────────────────────────────
 function renderTopCards() {
   // Exclude TBD, oversized, and undersized from top cards
-  const cands = candidateSites.filter(p => !p.rentTBD && !p.oversized && !p.undersized && !p.sqftTBD);
+  const cands = workingCandidates.filter(p => !p.rentTBD && !p.oversized && !p.undersized && !p.sqftTBD);
 
   const bySpace = [...cands].sort((a,b) => b.sqft - a.sqft).slice(0,3);
   document.getElementById('top-space').innerHTML = bySpace.map((p,i) => `
@@ -734,6 +909,9 @@ allProperties.forEach(p => {
     bathroom: p.bathroom !== undefined ? p.bathroom : null,
     parking:  p.parking  !== undefined ? p.parking  : null,
     access:   p.access   !== undefined ? p.access   : null,
+    priorUse: p.priorUse !== undefined ? p.priorUse : null,
+    buildOut: p.buildOut !== undefined ? p.buildOut : null,
+    status:   p.status   !== undefined ? p.status   : null,
   };
 });
 
@@ -824,6 +1002,225 @@ function opDropdown(addr, field, currentVal) {
     <span class="op-saved-dot" id="${dotId}"></span>
   </div>`;
 }
+
+// ─────────────────────────────────────────────
+// WIDE DROPDOWN — Prior Use & Build-Out
+// ─────────────────────────────────────────────
+const PRIOR_USE_OPTIONS = [
+  { val: '__null__',   label: '— TBD' },
+  { val: '1st Gen',    label: '1st Gen',     cls: 'pu-1stgen' },
+  { val: 'Restaurant', label: 'Restaurant',  cls: 'pu-restaurant' },
+  { val: 'PT Clinic',  label: 'PT Clinic',   cls: 'pu-ptclinic' },
+  { val: 'Gym',        label: 'Gym',         cls: 'pu-gym' },
+  { val: 'Med Spa',    label: 'Med Spa',     cls: 'pu-medspa' },
+  { val: 'Jeweler',    label: 'Jeweler',     cls: 'pu-jeweler' },
+  { val: 'Coffee Shop',label: 'Coffee Shop', cls: 'pu-coffee' },
+  { val: 'Other',      label: 'Other',       cls: 'pu-other' },
+];
+
+const BUILD_OUT_OPTIONS = [
+  { val: '__null__',            label: '— TBD' },
+  { val: 'Built out w/ Rooms',  label: 'Built out w/ Rooms',  cls: 'bo-builtrooms'  },
+  { val: 'Built out w/o Rooms', label: 'Built out w/o Rooms', cls: 'bo-builtnrooms' },
+  { val: 'Shell',               label: 'Shell',               cls: 'bo-shell'       },
+  { val: 'Needs Min Work',      label: 'Needs Min Work',      cls: 'bo-minwork'     },
+  { val: 'Needs A LOT',         label: 'Needs A LOT',         cls: 'bo-alotwork'    },
+];
+
+function wideDropdown(addr, field, currentVal, options) {
+  const id  = `sel-${addr}-${field}`;
+  const esc = addr.replace(/"/g, '&quot;').replace(/'/g, "\\'");
+  const opts = options.map(o =>
+    `<option value="${o.val}" ${currentVal === o.val ? 'selected' : ''}>${o.label}</option>`
+  ).join('');
+  const activeCls = currentVal ? (options.find(o => o.val === currentVal)?.cls || '') : '';
+  return `<div class="op-cell-wide">
+    <select id="${id}" class="op-select-wide ${activeCls}"
+      onchange="setOpWide('${esc}','${field}',this.value,this)">
+      ${opts}
+    </select>
+    <span class="op-saved-dot" id="dot-${addr}-${field}"></span>
+  </div>`;
+}
+
+function setOpWide(addr, field, rawVal, el) {
+  const val = rawVal === '__null__' ? null : rawVal;
+  if (!opState[addr]) opState[addr] = {};
+  opState[addr][field] = val;
+  el.className = 'op-select-wide';
+  const opts = field === 'priorUse' ? PRIOR_USE_OPTIONS : BUILD_OUT_OPTIONS;
+  const match = opts.find(o => o.val === rawVal);
+  if (match?.cls) el.classList.add(match.cls);
+  const dot = document.getElementById(`dot-${addr}-${field}`);
+  if (dot) { dot.classList.add('visible'); setTimeout(() => dot.classList.remove('visible'), 1400); }
+}
+
+// ─────────────────────────────────────────────
+// EDITABLE CELL — hover pencil icon to edit
+// ─────────────────────────────────────────────
+function editableCell(addr, field, displayVal, placeholder) {
+  const id  = `edit-${addr}-${field}`;
+  const esc = addr.replace(/'/g, "\\'");
+  const shown = (displayVal === null || displayVal === undefined) ? '—' : displayVal;
+  return `<div class="editable-cell">
+    <span class="edit-display" id="${id}-display">${shown}</span>
+    <span class="edit-icon" onclick="openEditCell('${esc}','${field}')" title="Edit">✎</span>
+    <span class="edit-inline-wrap" id="${id}-wrap">
+      <input class="edit-inline-input" id="${id}-input"
+        value="${shown === '—' ? '' : shown}" placeholder="${placeholder}"
+        onkeydown="if(event.key==='Enter')confirmEdit('${esc}','${field}');if(event.key==='Escape')cancelEdit('${esc}','${field}')">
+      <button class="edit-confirm" onclick="confirmEdit('${esc}','${field}')">✓</button>
+      <button class="edit-cancel"  onclick="cancelEdit('${esc}','${field}')">✕</button>
+    </span>
+  </div>`;
+}
+
+function openEditCell(addr, field) {
+  const id = `edit-${addr}-${field}`;
+  document.getElementById(`${id}-display`).style.display = 'none';
+  document.getElementById(`${id}-wrap`).classList.add('active');
+  const inp = document.getElementById(`${id}-input`);
+  inp.focus(); inp.select();
+}
+
+function cancelEdit(addr, field) {
+  const id = `edit-${addr}-${field}`;
+  document.getElementById(`${id}-display`).style.display = '';
+  document.getElementById(`${id}-wrap`).classList.remove('active');
+}
+
+function confirmEdit(addr, field) {
+  const raw = document.getElementById(`edit-${addr}-${field}-input`).value.trim();
+  updatePropField(addr, field, raw);
+}
+
+// ─────────────────────────────────────────────
+// SITE SPECS POPOVER
+// ─────────────────────────────────────────────
+let activeSpecsAddr = null;
+
+function openSpecs(addr, btnEl) {
+  const pop  = document.getElementById('specs-popover');
+  const body = document.getElementById('specs-popover-body');
+  const op   = opState[addr] || {};
+  const esc  = addr.replace(/'/g, "\\'");
+
+  // Toggle closed if same button clicked again
+  if (activeSpecsAddr === addr && pop.classList.contains('open')) {
+    pop.classList.remove('open');
+    activeSpecsAddr = null;
+    return;
+  }
+  activeSpecsAddr = addr;
+
+  const mkRow = (label, field, options) => {
+    const cur = op[field] || '__null__';
+    const opts = options.map(([v, l]) =>
+      `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+    return `<div class="specs-row">
+      <span class="specs-label">${label}</span>
+      <select class="op-select-wide" onchange="setOpFromSpecs('${esc}','${field}',this.value)">
+        ${opts}
+      </select>
+    </div>`;
+  };
+
+  body.innerHTML =
+    mkRow('Restroom', 'bathroom', [
+      ['__null__','— TBD'], ['Yes','Yes'], ['No','No']
+    ]) +
+    mkRow('Parking', 'parking', [
+      ['__null__','— TBD'], ['On Site','On Site'], ['Metered','Metered'], ['Garage','Garage']
+    ]) +
+    mkRow('Access', 'access', [
+      ['__null__','— TBD'], ['1st Floor','1st Floor'], ['2nd Floor+','2nd Floor+']
+    ]) +
+    mkRow('Prior Use', 'priorUse', [
+      ['__null__','— TBD'],['1st Gen','1st Gen'],['Restaurant','Restaurant'],
+      ['PT Clinic','PT Clinic'],['Gym','Gym'],['Med Spa','Med Spa'],
+      ['Jeweler','Jeweler'],['Coffee Shop','Coffee Shop'],['Other','Other']
+    ]) +
+    mkRow('Build-Out', 'buildOut', [
+      ['__null__','— TBD'],['Built out w/ Rooms','Built out w/ Rooms'],
+      ['Built out w/o Rooms','Built out w/o Rooms'],['Shell','Shell'],
+      ['Needs Min Work','Needs Min Work'],['Needs A LOT','Needs A LOT']
+    ]);
+
+  // Position below the button
+  const rect = btnEl.getBoundingClientRect();
+  pop.style.position = 'fixed';
+  pop.style.top  = (rect.bottom + 6) + 'px';
+  pop.style.left = Math.min(rect.left, window.innerWidth - 250) + 'px';
+  pop.classList.add('open');
+}
+
+function setOpFromSpecs(addr, field, rawVal) {
+  const val = rawVal === '__null__' ? null : rawVal;
+  if (!opState[addr]) opState[addr] = {};
+  opState[addr][field] = val;
+  // Refresh the dots on the button without closing the popover
+  const rows = document.querySelectorAll(`[data-specs-addr="${addr}"]`);
+  rows.forEach(btn => {
+    const op = opState[addr] || {};
+    const fields = [op.bathroom, op.parking, op.access, op.priorUse, op.buildOut];
+    const filled = fields.filter(Boolean).length;
+    btn.classList.toggle('has-data', filled > 0);
+    btn.querySelectorAll('.specs-dot').forEach((dot, i) => {
+      dot.classList.toggle('filled', !!fields[i]);
+    });
+  });
+}
+
+// Close popover on outside click — use mousedown to avoid race with button click
+document.addEventListener('mousedown', e => {
+  const pop = document.getElementById('specs-popover');
+  if (!pop || !pop.classList.contains('open')) return;
+  if (!pop.contains(e.target) && !e.target.closest('.specs-btn')) {
+    pop.classList.remove('open');
+    activeSpecsAddr = null;
+    renderTable();
+  }
+});
+
+// ─────────────────────────────────────────────
+// STATUS
+// ─────────────────────────────────────────────
+const STATUS_OPTIONS = [
+  { val: '__null__',     label: '— Set Status',   cls: '' },
+  { val: 'Reviewed',     label: 'Reviewed',        cls: 'st-reviewed' },
+  { val: 'Tour Pending', label: 'Tour Pending',    cls: 'st-tourpending' },
+  { val: 'Toured',       label: 'Toured',          cls: 'st-toured' },
+  { val: 'Leased',       label: 'Leased',          cls: 'st-leased' },
+];
+
+function setStatus(addr, rawVal, el) {
+  const val = rawVal === '__null__' ? null : rawVal;
+  if (!opState[addr]) opState[addr] = {};
+  opState[addr].status = val;
+  // Update color class
+  el.className = 'status-select';
+  const match = STATUS_OPTIONS.find(o => o.val === rawVal);
+  if (match?.cls) el.classList.add(match.cls);
+  // Show/hide promote button
+  const promoteId = `promote-${addr}`;
+  const btn = document.getElementById(promoteId);
+  if (btn) btn.classList.toggle('visible', val === 'Leased');
+}
+
+function promoteToBaseline(addr) {
+  const prop = allProperties.find(p => p.addr === addr);
+  if (!prop || prop.type === 'replacement') return;
+  prop.type = 'replacement';
+  prop.userAdded = prop.userAdded || false;
+  workingCandidates = workingCandidates.filter(p => p.addr !== addr);
+  baselineSites.push(prop);
+  recomputeAllLvar();
+  renderStats();
+  renderTopCards();
+  renderTable();
+}
+
 function renderTable() {
   const data = getFiltered();
   const validPpsf = data.filter(p => p.totalPpsf !== null).map(p => p.totalPpsf);
@@ -836,7 +1233,7 @@ function renderTable() {
     const isTBD   = p.rentTBD;
     const isOver  = p.oversized;
     const isUnder = p.undersized;
-    const opData  = opState[p.addr] || { bathroom: null, parking: null, access: null };
+    const opData  = opState[p.addr] || {};
 
     let rowCls = isRep ? 'row-replacement'
                : isOver  ? 'row-oversized'
@@ -850,7 +1247,7 @@ function renderTable() {
     else if (isTBD)  lvarCell = `<span class="lvar-cell" style="color:var(--text-dimmer);font-size:0.85rem;">TBD</span>`;
     else             lvarCell = `<span class="lvar-cell ${lvarColor(p.lvar)}">${p.lvar > 0 ? '+' : ''}${p.lvar}</span>`;
 
-    // Type tags
+    // Type tags + baseline toggle for user-added properties
     let typeTags = '';
     if (isRep)                   typeTags += `<span class="type-tag type-replacement">Replacement</span>`;
     else                         typeTags += `<span class="type-tag type-candidate">Candidate</span>`;
@@ -860,15 +1257,44 @@ function renderTable() {
     if (p.sqftTBD)               typeTags += `<span class="type-tag type-tbd">Size TBD</span>`;
     if (p.leaseType === 'Gross') typeTags += `<span class="type-tag type-gross">Gross Lease</span>`;
 
-    // Rent cells
-    const basePsfCell = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : fmtPsf(p.ppsf);
-    const nnnCell     = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : (p.leaseType === 'Gross' ? '<span style="color:var(--text-dimmer)">Gross</span>' : fmtPsf(p.nnn));
-    const allInCell   = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : `
-        ${renderBar(p.totalPpsf, 'cost', maxTotPpsf)}
-        <div class="metric-val">${fmtPsf(p.totalPpsf)}/SF</div>`;
-    const annualCell  = isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : `
-        <div class="annual-rent">${fmt(p.totalAnnual)}</div>
-        <div class="annual-sub">incl. NNN</div>`;
+    // Baseline ↔ Candidate toggle (user-added properties only)
+    const addrEscToggle = p.addr.replace(/'/g, "\\'");
+    if (p.userAdded) {
+      typeTags += `
+        <div class="type-toggle" style="margin-top:5px;" title="Toggle between Candidate and Baseline">
+          <span class="type-toggle-opt ${!isRep ? 'active-cand' : ''}"
+            onclick="if(${isRep}) togglePropertyType('${addrEscToggle}')">Candidate</span>
+          <span class="type-toggle-opt ${isRep ? 'active-base' : ''}"
+            onclick="if(!${isRep}) togglePropertyType('${addrEscToggle}')">Baseline</span>
+        </div>`;
+    }
+
+    // Rent cells — editable inputs for user-added properties
+    const addrEscEdit = p.addr.replace(/'/g, "\\'");
+
+    const basePsfCell = p.userAdded
+      ? `<input class="add-prop-input" style="width:70px;padding:4px 6px;font-size:0.72rem;"
+           placeholder="$/SF" value="${p.ppsf || ''}"
+           onchange="updatePropField('${addrEscEdit}','ppsf',this.value)">`
+      : isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>` : fmtPsf(p.ppsf);
+
+    const nnnCell = p.userAdded
+      ? `<input class="add-prop-input" style="width:70px;padding:4px 6px;font-size:0.72rem;"
+           placeholder="NNN" value="${p.nnn || ''}"
+           onchange="updatePropField('${addrEscEdit}','nnn',this.value)">`
+      : p.leaseType === 'Gross'
+        ? `<span style="color:var(--text-dimmer)">Gross</span>`
+        : editableCell(p.addr, 'nnn', isTBD ? '—' : `$${(p.nnn||0).toFixed(2)}`, 'NNN/SF');
+
+    const allInCell = (p.userAdded && !p.totalPpsf)
+      ? `<span style="color:var(--text-dimmer);font-size:0.72rem;">— enter rent</span>`
+      : isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>`
+      : `${renderBar(p.totalPpsf, 'cost', maxTotPpsf)}<div class="metric-val">${fmtPsf(p.totalPpsf)}/SF</div>`;
+
+    const annualCell = (p.userAdded && !p.totalAnnual)
+      ? `<span style="color:var(--text-dimmer);font-size:0.72rem;">— enter rent + SF</span>`
+      : isTBD ? `<span style="color:var(--text-dimmer)">TBD</span>`
+      : `<div class="annual-rent">${fmt(p.totalAnnual)}</div><div class="annual-sub">incl. NNN</div>`;
 
     // vs Baseline cell
     let vsBaselineCell;
@@ -893,17 +1319,60 @@ function renderTable() {
     // Notes row
     const notesRow = p.notes ? `<div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:3px;font-style:italic;">${p.notes}</div>` : '';
 
-    // Operational columns — static pills for baselines, interactive dropdowns for candidates
-    const bathCell   = isRep ? opPill(opData.bathroom, 'bathroom') : opDropdown(p.addr, 'bathroom', opData.bathroom);
-    const parkCell   = isRep ? opPill(opData.parking,  'parking')  : opDropdown(p.addr, 'parking',  opData.parking);
-    const accessCell = isRep ? opPill(opData.access,   'access')   : opDropdown(p.addr, 'access',   opData.access);
+    // Operational columns — collapsed into Site Specs popover button
+    const op    = opState[p.addr] || {};
+    const specFields = [op.bathroom, op.parking, op.access, op.priorUse, op.buildOut];
+    const filledCount = specFields.filter(v => v !== null && v !== undefined).length;
+    const dots = specFields.map(v =>
+      `<span class="specs-dot ${v ? 'filled' : ''}"></span>`).join('');
+    const addrEscSpecs = p.addr.replace(/'/g, "\\'");
+    const specsBtn = `<button class="specs-btn ${filledCount > 0 ? 'has-data' : ''}"
+      data-specs-addr="${p.addr.replace(/"/g, '&quot;')}"
+      onclick="event.stopPropagation();openSpecs('${addrEscSpecs}',this)">
+      Specs ›
+      <span class="specs-dots">${dots}</span>
+    </button>`;
+
+    // Status cell
+    const curStatus = op.status || '__null__';
+    const statusCls = STATUS_OPTIONS.find(o => o.val === curStatus)?.cls || '';
+    const statusOpts = STATUS_OPTIONS.map(o =>
+      `<option value="${o.val}" ${curStatus === o.val ? 'selected' : ''}>${o.label}</option>`
+    ).join('');
+    const isLeased = curStatus === 'Leased';
+    const statusCell = `<div class="status-cell">
+      <select class="status-select ${statusCls}"
+        onchange="setStatus('${addrEscSpecs}',this.value,this)">
+        ${statusOpts}
+      </select>
+      ${!isRep ? `<button id="promote-${p.addr}" class="promote-btn ${isLeased ? 'visible' : ''}"
+        onclick="promoteToBaseline('${addrEscSpecs}')">⬆ Promote to Baseline</button>` : ''}
+    </div>`;
+
+    // Sq Ft cell — editable for all properties via hover pencil
+    const sqftDisplay = p.sqftTBD ? '—' : p.sqft.toLocaleString();
+    const sqftCell = p.userAdded
+      ? `<input class="add-prop-input" style="width:70px;padding:4px 6px;font-size:0.72rem;"
+           placeholder="SF" value="${p.sqft || ''}"
+           onchange="updatePropField('${addrEscEdit}','sqft',this.value)">`
+      : `<div>${editableCell(p.addr, 'sqft', sqftDisplay, 'SF')}
+           ${!p.sqftTBD ? `<div class="metric-val" style="margin-top:2px;">${renderBar(p.sqft, 'space', maxSqft)}</div>` : ''}
+         </div>`;
+
+    // Base $/SF cell — editable for all properties via hover pencil
+    const ppsfDisplay = isTBD ? '—' : `$${p.ppsf.toFixed(2)}`;
+    const ppsfCell = p.userAdded
+      ? `<input class="add-prop-input" style="width:70px;padding:4px 6px;font-size:0.72rem;"
+           placeholder="$/SF" value="${p.ppsf || ''}"
+           onchange="updatePropField('${addrEscEdit}','ppsf',this.value)">`
+      : editableCell(p.addr, 'ppsf', ppsfDisplay, '$/SF');
 
     // ISO + competitor cells
-    const isoVal    = p.isoPop    !== null ? p.isoPop.toLocaleString()    : null;
-    const compVal   = p.compCount !== null ? p.compCount                  : null;
-    const compCls   = compVal === null ? '' : compVal < 10 ? 'comp-low' : compVal < 25 ? 'comp-mid' : 'comp-high';
-    const addrEsc   = p.addr.replace(/'/g, "\\'");
-    const nameEsc   = p.name.replace(/'/g, "\\'");
+    const isoVal  = p.isoPop    !== null ? p.isoPop.toLocaleString() : null;
+    const compVal = p.compCount !== null ? p.compCount               : null;
+    const compCls = compVal === null ? '' : compVal < 10 ? 'comp-low' : compVal < 25 ? 'comp-mid' : 'comp-high';
+    const addrEsc = p.addr.replace(/'/g, "\\'");
+    const nameEsc = p.name.replace(/'/g, "\\'");
 
     const isoCell  = `<div class="iso-cell">
       ${isoVal
@@ -926,26 +1395,21 @@ function renderTable() {
       </td>
       <td>${regionBadge(p.region)}</td>
       <td>${lvarCell}</td>
+      <td>${specsBtn}</td>
       <td>
         ${p.potentialRooms !== null
           ? `<div class="rooms-val">${p.potentialRooms}</div><div class="rooms-sub">${p.sqft.toLocaleString()} SF · 28% scan allocation</div>`
           : `<span style="color:var(--text-dimmer);font-size:0.75rem;">TBD</span>`}
       </td>
-      <td class="bar-cell">
-        ${p.sqftTBD
-          ? `<span style="color:var(--text-dimmer);font-size:0.75rem;">TBD</span>`
-          : `${renderBar(p.sqft, 'space', maxSqft)}<div class="metric-val">${p.sqft.toLocaleString()} SF</div>`}
-      </td>
-      <td>${bathCell}</td>
-      <td>${parkCell}</td>
-      <td>${accessCell}</td>
-      <td style="font-size:0.82rem;">${basePsfCell}</td>
+      <td>${sqftCell}</td>
+      <td style="font-size:0.82rem;">${ppsfCell}</td>
       <td style="font-size:0.82rem;color:var(--text-dim);">${nnnCell}</td>
       <td class="bar-cell">${allInCell}</td>
       <td>${annualCell}</td>
       <td class="iso-cell">${isoCell}</td>
       <td>${compCell}</td>
       <td class="vs-cell">${vsBaselineCell}</td>
+      <td>${statusCell}</td>
     </tr>`;
   }).join('');
 }
@@ -1280,11 +1744,248 @@ allProperties.forEach(p => {
 });
 
 // ─────────────────────────────────────────────
-// INIT
+// ADD PROPERTY
 // ─────────────────────────────────────────────
+let userAddedProperties = []; // track which properties were user-added (for row edit UI)
+
+function handleRegionSelect(sel) {
+  const customInput = document.getElementById('new-region-custom');
+  if (sel.value === '__new__') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+function getSelectedRegion() {
+  const sel = document.getElementById('new-region');
+  if (sel.value === '__new__') {
+    const custom = document.getElementById('new-region-custom').value.trim();
+    return custom || null;
+  }
+  return sel.value;
+}
+
+function injectRegionFilterButton(region) {
+  // Don't add if already exists
+  const btnGroup = document.querySelector('.btn-group[data-region-group]');
+  if (!btnGroup) return;
+  const exists = [...btnGroup.querySelectorAll('.btn')].some(b =>
+    b.textContent.trim() === region
+  );
+  if (exists) return;
+  const btn = document.createElement('button');
+  btn.className = 'btn';
+  btn.textContent = region;
+  btn.onclick = function() { filterRegion(region, this); };
+  btnGroup.appendChild(btn);
+}
+
+function toggleAddForm() {
+  const form = document.getElementById('add-prop-form');
+  form.classList.toggle('open');
+  if (form.classList.contains('open')) {
+    setTimeout(() => document.getElementById('new-addr').focus(), 50);
+  }
+}
+
+function addProperty() {
+  const addr   = document.getElementById('new-addr').value.trim();
+  const name   = document.getElementById('new-name').value.trim() || addr.split(',')[0].trim();
+  const region = getSelectedRegion();
+  const type   = document.getElementById('new-type').value;
+
+  if (!addr) {
+    document.getElementById('new-addr').style.borderColor = 'var(--red)';
+    document.getElementById('new-addr').placeholder = 'Address is required';
+    return;
+  }
+
+  if (!region) {
+    document.getElementById('new-region-custom').style.borderColor = 'var(--red)';
+    document.getElementById('new-region-custom').placeholder = 'Region name is required';
+    return;
+  }
+
+  // Check for duplicate
+  if (allProperties.find(p => p.addr.toLowerCase() === addr.toLowerCase())) {
+    document.getElementById('new-addr').style.borderColor = 'var(--red)';
+    document.getElementById('new-addr').value = '';
+    document.getElementById('new-addr').placeholder = 'Address already exists in dashboard';
+    return;
+  }
+
+  const newProp = {
+    name, addr, region,
+    type:      type === 'replacement' ? 'replacement' : 'candidate',
+    sqft:      null, ppsf: null, nnn: null,
+    leaseType: 'NNN',
+    bathroom:  null, parking: null, access: null,
+    isoPop:    null, compCount: null,
+    userAdded: true,  // flag for editable row UI
+    rentTBD:   true,
+    sqftTBD:   true,
+    potentialRooms: null,
+    totalPpsf: null, totalAnnual: null, baseAnnual: null, nnnAnnual: null,
+    lvar: null, baselinePpsf: null, baselineSqft: null, baselineSource: null,
+    vsPsf: null, vsSqft: null,
+  };
+
+  // Compute baseline fields
+  const baseline = computeBaseline(newProp);
+  Object.assign(newProp, baseline);
+
+  // Seed opState
+  opState[addr] = { bathroom: null, parking: null, access: null };
+
+  // Insert at top of appropriate list
+  if (type === 'replacement') {
+    baselineSites.unshift(newProp);
+  } else {
+    workingCandidates.unshift(newProp);
+  }
+  allProperties.unshift(newProp);
+  userAddedProperties.push(addr);
+
+  // Reset form
+  document.getElementById('new-addr').value = '';
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-addr').style.borderColor = '';
+  document.getElementById('new-addr').placeholder = 'e.g. 123 Main St, Philadelphia PA';
+  document.getElementById('new-region').value = 'Philadelphia';
+  document.getElementById('new-region-custom').style.display = 'none';
+  document.getElementById('new-region-custom').value = '';
+  document.getElementById('add-prop-form').classList.remove('open');
+
+  // If new region, inject filter button and add badge CSS if needed
+  injectRegionFilterButton(region);
+
+  // Add new region to the dropdown for future use in the same session
+  const sel = document.getElementById('new-region');
+  const alreadyInDropdown = [...sel.options].some(o => o.value === region);
+  if (!alreadyInDropdown) {
+    const opt = document.createElement('option');
+    opt.value = region;
+    opt.textContent = region;
+    sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+    sel.value = region;
+  }
+
+  renderStats();
+  renderTopCards();
+  renderTable();
+}
+
+function togglePropertyType(addr) {
+  const prop = allProperties.find(p => p.addr === addr);
+  if (!prop) return;
+
+  // Flip type
+  const wasReplacement = prop.type === 'replacement';
+  prop.type = wasReplacement ? 'candidate' : 'replacement';
+
+  // Move between lists
+  if (wasReplacement) {
+    baselineSites  = baselineSites.filter(p => p.addr !== addr);
+    workingCandidates.unshift(prop);
+  } else {
+    workingCandidates = workingCandidates.filter(p => p.addr !== addr);
+    baselineSites.unshift(prop);
+  }
+
+  // Recompute all LVAR since baselines changed
+  recomputeAllLvar();
+  renderStats();
+  renderTopCards();
+  renderTable();
+}
+
+function updatePropField(addr, field, rawVal) {
+  const prop = allProperties.find(p => p.addr === addr);
+  if (!prop) return;
+
+  const val = rawVal === '' ? null : parseFloat(rawVal);
+  prop[field] = isNaN(val) ? null : val;
+
+  // Recompute derived fields
+  prop.sqftTBD   = prop.sqft === null;
+  prop.rentTBD   = prop.ppsf === null || prop.sqftTBD;
+  prop.totalPpsf = prop.rentTBD ? null : +(prop.ppsf + (prop.nnn || 0)).toFixed(2);
+  prop.baseAnnual  = prop.rentTBD ? null : Math.round(prop.sqft * prop.ppsf);
+  prop.nnnAnnual   = prop.rentTBD ? null : Math.round(prop.sqft * (prop.nnn || 0));
+  prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
+  const SCAN_PCT = 0.28, ROOM_SF = 121;
+  prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * SCAN_PCT / ROOM_SF);
+
+  // Recompute LVAR if it's a candidate
+  if (prop.type === 'candidate') {
+    const b = computeBaseline(prop);
+    Object.assign(prop, b);
+  }
+
+  renderStats();
+  renderTopCards();
+  renderTable();
+}
+
+function recomputeAllLvar() {
+  workingCandidates.forEach(p => {
+    if (p.rentTBD) return;
+    const b = computeBaseline(p);
+    Object.assign(p, b);
+  });
+}
+
+function computeBaseline(p) {
+  // Match existing computeBaseline logic from the data section
+  const regionBaselines = baselineSites.filter(b => b.region === p.region && b.totalPpsf !== null);
+  let src = p.region;
+  let bases = regionBaselines;
+  if (bases.length === 0) {
+    // proxy: Chicago
+    bases = baselineSites.filter(b => b.region === 'Chicago' && b.totalPpsf !== null);
+    src = 'Chicago';
+  }
+  if (bases.length === 0) return { lvar: null, baselinePpsf: null, baselineSqft: null, baselineSource: src, vsPsf: null, vsSqft: null };
+
+  const sorted_psf  = [...bases].map(b => b.totalPpsf).sort((a,b)=>a-b);
+  const sorted_sqft = [...bases].map(b => b.sqft).filter(Boolean).sort((a,b)=>a-b);
+  const med = arr => arr.length % 2 === 0
+    ? (arr[arr.length/2-1] + arr[arr.length/2]) / 2
+    : arr[Math.floor(arr.length/2)];
+
+  const bPpsf = +med(sorted_psf).toFixed(2);
+  const bSqft = Math.round(med(sorted_sqft));
+
+  if (!p.totalPpsf || !p.sqft) return { lvar: null, baselinePpsf: bPpsf, baselineSqft: bSqft, baselineSource: src, vsPsf: null, vsSqft: null };
+
+  const costDelta  = (bPpsf - p.totalPpsf) / bPpsf;
+  const spaceDelta = (p.sqft - bSqft) / bSqft;
+  const raw = (costDelta * 0.60) + (spaceDelta * 0.40);
+  const lvar = Math.round(raw * 10 * 10) / 10;
+
+  return {
+    lvar, baselinePpsf: bPpsf, baselineSqft: bSqft, baselineSource: src,
+    vsPsf:  +(p.totalPpsf - bPpsf).toFixed(2),
+    vsSqft: p.sqft - bSqft,
+  };
+}
+
 renderStats();
 renderTopCards();
 renderTable();
+
+// Scroll fade — hide right shadow when table is fully scrolled
+const tableContainer = document.getElementById('table-container');
+const scrollFade     = document.getElementById('scroll-fade');
+if (tableContainer && scrollFade) {
+  tableContainer.addEventListener('scroll', () => {
+    const atEnd = tableContainer.scrollLeft + tableContainer.clientWidth >= tableContainer.scrollWidth - 4;
+    scrollFade.classList.toggle('hidden', atEnd);
+  });
+}
 </script>
 </body>
 </html>
