@@ -345,6 +345,10 @@ const SB_TABLE      = 'property_data';
   .promote-btn { display: none; padding: 4px 10px; background: var(--accent2); color: #fff; border: none; border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 0.6rem; cursor: pointer; letter-spacing: 0.04em; transition: background 0.15s; white-space: nowrap; }
   .promote-btn:hover { background: var(--accent3); }
   .promote-btn.visible { display: inline-block; }
+  .delete-btn { background: none; border: none; color: var(--text-dimmer); font-size: 0.8rem; cursor: pointer; padding: 2px 5px; border-radius: 4px; opacity: 0; transition: all 0.15s; line-height: 1; }
+  tr:hover .delete-btn { opacity: 1; }
+  .delete-btn:hover { color: var(--red); background: rgba(217,79,79,0.08); }
+
   .editable-cell { position: relative; display: inline-flex; align-items: center; gap: 5px; }
   .edit-icon { opacity: 0; font-size: 0.65rem; color: var(--text-dimmer); cursor: pointer; transition: opacity 0.15s, color 0.15s; padding: 1px 3px; border-radius: 3px; line-height: 1; }
   tr:hover .edit-icon { opacity: 1; }
@@ -1436,10 +1440,15 @@ function renderTable() {
     <tr class="${rowCls}">
       <td class="rank-cell">${i + 1}</td>
       <td class="wrap-cell">
-        <div class="prop-name" style="cursor:pointer;transition:color 0.15s" onclick="openMapPanel('${addrEsc}','${nameEsc}')" title="Open map view">${p.name} <span style="font-size:0.7rem;color:var(--accent3)">↗</span></div>
-        <div class="prop-addr">${p.addr}</div>
-        <div style="margin-top:3px;">${typeTags}</div>
-        ${notesRow}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
+          <div>
+            <div class="prop-name" style="cursor:pointer;transition:color 0.15s" onclick="openMapPanel('${addrEsc}','${nameEsc}')" title="Open map view">${p.name} <span style="font-size:0.7rem;color:var(--accent3)">↗</span></div>
+            <div class="prop-addr">${p.addr}</div>
+            <div style="margin-top:3px;">${typeTags}</div>
+            ${notesRow}
+          </div>
+          <button class="delete-btn" onclick="deleteProperty('${addrEsc}')" title="Delete property">✕</button>
+        </div>
       </td>
       <td>${regionBadge(p.region)}</td>
       <td>${lvarCell}</td>
@@ -1978,6 +1987,35 @@ function updatePropField(addr, field, rawVal) {
   renderTable();
 }
 
+async function deleteProperty(addr) {
+  if (!confirm(`Remove "${addr.split(',')[0]}" from the dashboard?`)) return;
+
+  // Remove from all in-memory lists
+  const idx = allProperties.findIndex(p => p.addr === addr);
+  if (idx === -1) return;
+  const prop = allProperties[idx];
+  allProperties.splice(idx, 1);
+  workingCandidates = workingCandidates.filter(p => p.addr !== addr);
+  baselineSites     = baselineSites.filter(p => p.addr !== addr);
+  delete opState[addr];
+  delete geoCache[addr];
+
+  // Delete from Supabase
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}?addr=eq.${encodeURIComponent(addr)}`, {
+      method: 'DELETE',
+      headers: { ...SB_HEADERS, 'Prefer': '' }
+    });
+  } catch(e) {
+    console.error('Supabase delete error:', e);
+  }
+
+  recomputeAllLvar();
+  renderStats();
+  renderTopCards();
+  renderTable();
+}
+
 function recomputeAllLvar() {
   workingCandidates.forEach(p => {
     if (p.rentTBD) return;
@@ -2104,6 +2142,9 @@ async function sbLoad() {
         if (prop.type === 'replacement') baselineSites.unshift(prop);
         else workingCandidates.unshift(prop);
         opState[addr] = {};
+
+        // Inject region filter button if it's a new region
+        injectRegionFilterButton(prop.region);
       }
 
       // Restore opState
