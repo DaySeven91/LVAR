@@ -2064,49 +2064,85 @@ async function sbLoad() {
     const res  = await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}?select=*`, { headers: SB_HEADERS });
     const rows = await res.json();
     if (!Array.isArray(rows)) return;
+
     rows.forEach(row => {
       const addr = row.addr;
+
+      // If property doesn't exist in hardcoded data, reconstruct it
+      let prop = allProperties.find(p => p.addr === addr);
+      if (!prop && row.user_added) {
+        prop = {
+          name: addr.split(',')[0].trim(),
+          addr,
+          region:   row.region || 'Unknown',
+          type:     row.type   || 'candidate',
+          sqft:     row.sqft   || null,
+          ppsf:     row.ppsf   || null,
+          nnn:      row.nnn    || null,
+          leaseType: 'NNN',
+          bathroom: null, parking: null, access: null,
+          isoPop: null, compCount: null,
+          userAdded: true,
+          rentTBD: !row.ppsf || !row.sqft,
+          sqftTBD: !row.sqft,
+          potentialRooms: null,
+          totalPpsf: null, totalAnnual: null, baseAnnual: null, nnnAnnual: null,
+          lvar: null, baselinePpsf: null, baselineSqft: null, baselineSource: null,
+          vsPsf: null, vsSqft: null,
+        };
+        // Compute derived financials
+        prop.sqftTBD   = prop.sqft === null;
+        prop.rentTBD   = prop.ppsf === null || prop.sqftTBD;
+        prop.totalPpsf = prop.rentTBD ? null : +(prop.ppsf + (prop.nnn||0)).toFixed(2);
+        prop.baseAnnual  = prop.rentTBD ? null : Math.round(prop.sqft * prop.ppsf);
+        prop.nnnAnnual   = prop.rentTBD ? null : Math.round(prop.sqft * (prop.nnn||0));
+        prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
+        prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * 0.28 / 121);
+
+        // Add to appropriate lists
+        allProperties.unshift(prop);
+        if (prop.type === 'replacement') baselineSites.unshift(prop);
+        else workingCandidates.unshift(prop);
+        opState[addr] = {};
+      }
+
+      // Restore opState
       if (!opState[addr]) opState[addr] = {};
-      if (row.bathroom  !== null) opState[addr].bathroom  = row.bathroom;
-      if (row.parking   !== null) opState[addr].parking   = row.parking;
-      if (row.access    !== null) opState[addr].access    = row.access;
-      if (row.prior_use !== null) opState[addr].priorUse  = row.prior_use;
-      if (row.build_out !== null) opState[addr].buildOut  = row.build_out;
-      if (row.status    !== null) opState[addr].status    = row.status;
-      if (row.iso_pop   !== null) opState[addr].isoPop    = row.iso_pop;
-      if (row.comp_count!== null) opState[addr].compCount = row.comp_count;
-      // Restore editable fields to property object
-      const prop = allProperties.find(p => p.addr === addr);
+      if (row.bathroom  != null) opState[addr].bathroom  = row.bathroom;
+      if (row.parking   != null) opState[addr].parking   = row.parking;
+      if (row.access    != null) opState[addr].access    = row.access;
+      if (row.prior_use != null) opState[addr].priorUse  = row.prior_use;
+      if (row.build_out != null) opState[addr].buildOut  = row.build_out;
+      if (row.status    != null) opState[addr].status    = row.status;
+
+      // Restore editable fields
       if (prop) {
-        if (row.sqft     !== null) { prop.sqft  = row.sqft;  prop.sqftTBD = false; }
-        if (row.ppsf     !== null) { prop.ppsf  = row.ppsf; }
-        if (row.nnn      !== null) { prop.nnn   = row.nnn; }
-        if (row.sqft !== null || row.ppsf !== null) {
-          prop.sqftTBD   = prop.sqft === null;
-          prop.rentTBD   = prop.ppsf === null || prop.sqftTBD;
-          prop.totalPpsf = prop.rentTBD ? null : +(prop.ppsf + (prop.nnn||0)).toFixed(2);
-          prop.baseAnnual  = prop.rentTBD ? null : Math.round(prop.sqft * prop.ppsf);
-          prop.nnnAnnual   = prop.rentTBD ? null : Math.round(prop.sqft * (prop.nnn||0));
-          prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
-          prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * 0.28 / 121);
-          if (prop.type === 'candidate') Object.assign(prop, computeBaseline(prop));
-        }
-        // Restore user-added properties
-        if (row.user_added) {
-          prop.userAdded = true;
-          if (!workingCandidates.find(p => p.addr === addr) && !baselineSites.find(p => p.addr === addr)) {
-            if (prop.type === 'candidate') workingCandidates.push(prop);
-            else baselineSites.push(prop);
-          }
-        }
-        // Restore status-driven baseline promotions
+        if (row.sqft != null) prop.sqft = row.sqft;
+        if (row.ppsf != null) prop.ppsf = row.ppsf;
+        if (row.nnn  != null) prop.nnn  = row.nnn;
+        if (row.iso_pop    != null) { prop.isoPop    = row.iso_pop;    opState[addr].isoPop    = row.iso_pop; }
+        if (row.comp_count != null) { prop.compCount = row.comp_count; opState[addr].compCount = row.comp_count; }
+
+        // Recompute derived fields
+        prop.sqftTBD   = prop.sqft === null;
+        prop.rentTBD   = prop.ppsf === null || prop.sqftTBD;
+        prop.totalPpsf = prop.rentTBD ? null : +(prop.ppsf + (prop.nnn||0)).toFixed(2);
+        prop.baseAnnual  = prop.rentTBD ? null : Math.round(prop.sqft * prop.ppsf);
+        prop.nnnAnnual   = prop.rentTBD ? null : Math.round(prop.sqft * (prop.nnn||0));
+        prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
+        prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * 0.28 / 121);
+
+        // Restore type changes (promotions)
         if (row.type === 'replacement' && prop.type === 'candidate') {
           prop.type = 'replacement';
           workingCandidates = workingCandidates.filter(p => p.addr !== addr);
           if (!baselineSites.find(p => p.addr === addr)) baselineSites.push(prop);
         }
+
+        if (prop.type === 'candidate') Object.assign(prop, computeBaseline(prop));
       }
     });
+
     recomputeAllLvar();
   } catch(e) {
     console.error('Supabase load error:', e);
@@ -2119,6 +2155,7 @@ async function sbSave(addr) {
   const prop = allProperties.find(p => p.addr === addr);
   const row  = {
     addr,
+    region:     prop?.region     || null,
     bathroom:   op.bathroom  || null,
     parking:    op.parking   || null,
     access:     op.access    || null,
@@ -2182,10 +2219,12 @@ promoteToBaseline = function(addr) {
 
 const _origAddProperty = addProperty;
 addProperty = function() {
+  // Snapshot addresses before adding
+  const addrsBefore = new Set(allProperties.map(p => p.addr));
   _origAddProperty();
-  // Save newly added property — find it as the most recently added
-  const newest = allProperties.find(p => p.userAdded && !opState[p.addr]?.savedOnce);
-  if (newest) { if (!opState[newest.addr]) opState[newest.addr] = {}; opState[newest.addr].savedOnce = true; sbSave(newest.addr); }
+  // Find the newly added property by diffing addresses
+  const newProp = allProperties.find(p => !addrsBefore.has(p.addr));
+  if (newProp) sbSave(newProp.addr);
 };
 
 // ─────────────────────────────────────────────
