@@ -968,17 +968,15 @@ allProperties.forEach(p => {
 
 function setOp(addr, field, rawVal) {
   if (!opState[addr]) opState[addr] = { bathroom: null, parking: null, access: null };
-  // Parse value — 'null' string → null, 'true'/'false' → bool
   let val = rawVal === '__null__' ? null
           : rawVal === 'true'    ? true
           : rawVal === 'false'   ? false
           : rawVal;
   opState[addr][field] = val;
-  // Flash saved dot
   const dot = document.getElementById('dot-' + CSS.escape(addr) + '-' + field);
   if (dot) { dot.classList.add('visible'); setTimeout(() => dot.classList.remove('visible'), 1400); }
-  // Recolor the select itself
   applySelectColor(addr, field, val);
+  sbSave(addr);
 }
 
 function applySelectColor(addr, field, val) {
@@ -1104,6 +1102,7 @@ function setOpWide(addr, field, rawVal, el) {
   if (match?.cls) el.classList.add(match.cls);
   const dot = document.getElementById(`dot-${addr}-${field}`);
   if (dot) { dot.classList.add('visible'); setTimeout(() => dot.classList.remove('visible'), 1400); }
+  sbSave(addr);
 }
 
 // ─────────────────────────────────────────────
@@ -1210,17 +1209,15 @@ function setOpFromSpecs(addr, field, rawVal) {
   const val = rawVal === '__null__' ? null : rawVal;
   if (!opState[addr]) opState[addr] = {};
   opState[addr][field] = val;
-  // Refresh the dots on the button without closing the popover
+  // Refresh dots on button
   const rows = document.querySelectorAll(`[data-specs-addr="${addr}"]`);
   rows.forEach(btn => {
     const op = opState[addr] || {};
     const fields = [op.bathroom, op.parking, op.access, op.priorUse, op.buildOut];
-    const filled = fields.filter(Boolean).length;
-    btn.classList.toggle('has-data', filled > 0);
-    btn.querySelectorAll('.specs-dot').forEach((dot, i) => {
-      dot.classList.toggle('filled', !!fields[i]);
-    });
+    btn.classList.toggle('has-data', fields.some(Boolean));
+    btn.querySelectorAll('.specs-dot').forEach((dot, i) => dot.classList.toggle('filled', !!fields[i]));
   });
+  sbSave(addr);
 }
 
 // Close popover on outside click — use mousedown to avoid race with button click
@@ -1249,24 +1246,26 @@ function setStatus(addr, rawVal, el) {
   const val = rawVal === '__null__' ? null : rawVal;
   if (!opState[addr]) opState[addr] = {};
   opState[addr].status = val;
-  // Update color class
   el.className = 'status-select';
   const match = STATUS_OPTIONS.find(o => o.val === rawVal);
   if (match?.cls) el.classList.add(match.cls);
-  // Show/hide promote button
-  const promoteId = `promote-${addr}`;
-  const btn = document.getElementById(promoteId);
-  if (btn) btn.classList.toggle('visible', val === 'Leased');
+  const btn = document.getElementById(`promote-${addr}`);
+  if (btn) {
+    const show = val === 'Leased' || val === 'Reviewed';
+    btn.classList.toggle('visible', show);
+    btn.textContent = val === 'Leased' ? '⬆ Promote to Baseline' : '⬆ Move to Baseline';
+  }
+  sbSave(addr);
 }
 
 function promoteToBaseline(addr) {
   const prop = allProperties.find(p => p.addr === addr);
   if (!prop || prop.type === 'replacement') return;
   prop.type = 'replacement';
-  prop.userAdded = prop.userAdded || false;
   workingCandidates = workingCandidates.filter(p => p.addr !== addr);
   baselineSites.push(prop);
   recomputeAllLvar();
+  sbSave(addr);
   renderStats();
   renderTopCards();
   renderTable();
@@ -1308,17 +1307,15 @@ function renderTable() {
     if (p.sqftTBD)               typeTags += `<span class="type-tag type-tbd">Size TBD</span>`;
     if (p.leaseType === 'Gross') typeTags += `<span class="type-tag type-gross">Gross Lease</span>`;
 
-    // Baseline ↔ Candidate toggle (user-added properties only)
+    // Baseline ↔ Candidate toggle — available on ALL properties
     const addrEscToggle = p.addr.replace(/'/g, "\\'");
-    if (p.userAdded) {
-      typeTags += `
-        <div class="type-toggle" style="margin-top:5px;" title="Toggle between Candidate and Baseline">
-          <span class="type-toggle-opt ${!isRep ? 'active-cand' : ''}"
-            onclick="if(${isRep}) togglePropertyType('${addrEscToggle}')">Candidate</span>
-          <span class="type-toggle-opt ${isRep ? 'active-base' : ''}"
-            onclick="if(!${isRep}) togglePropertyType('${addrEscToggle}')">Baseline</span>
-        </div>`;
-    }
+    typeTags += `
+      <div class="type-toggle" style="margin-top:5px;" title="Toggle between Candidate and Baseline">
+        <span class="type-toggle-opt ${!isRep ? 'active-cand' : ''}"
+          onclick="if(${isRep}) togglePropertyType('${addrEscToggle}')">Candidate</span>
+        <span class="type-toggle-opt ${isRep ? 'active-base' : ''}"
+          onclick="if(!${isRep}) togglePropertyType('${addrEscToggle}')">Baseline</span>
+      </div>`;
 
     // Rent cells — editable inputs for user-added properties
     const addrEscEdit = p.addr.replace(/'/g, "\\'");
@@ -1390,14 +1387,17 @@ function renderTable() {
     const statusOpts = STATUS_OPTIONS.map(o =>
       `<option value="${o.val}" ${curStatus === o.val ? 'selected' : ''}>${o.label}</option>`
     ).join('');
-    const isLeased = curStatus === 'Leased';
+    const isLeased   = curStatus === 'Leased';
+    const isReviewed = curStatus === 'Reviewed';
+    const showPromote = isLeased || isReviewed;
+    const promoteLabel = isLeased ? '⬆ Promote to Baseline' : '⬆ Move to Baseline';
     const statusCell = `<div class="status-cell">
       <select class="status-select ${statusCls}"
         onchange="setStatus('${addrEscSpecs}',this.value,this)">
         ${statusOpts}
       </select>
-      ${!isRep ? `<button id="promote-${p.addr}" class="promote-btn ${isLeased ? 'visible' : ''}"
-        onclick="promoteToBaseline('${addrEscSpecs}')">⬆ Promote to Baseline</button>` : ''}
+      ${!isRep ? `<button id="promote-${p.addr}" class="promote-btn ${showPromote ? 'visible' : ''}"
+        onclick="promoteToBaseline('${addrEscSpecs}')">${promoteLabel}</button>` : ''}
     </div>`;
 
     // Sq Ft cell — editable for all properties via hover pencil
@@ -1915,10 +1915,10 @@ function addProperty() {
   document.getElementById('new-region-custom').value = '';
   document.getElementById('add-prop-form').classList.remove('open');
 
-  // If new region, inject filter button and add badge CSS if needed
+  // If new region, inject filter button
   injectRegionFilterButton(region);
 
-  // Add new region to the dropdown for future use in the same session
+  // Add new region to dropdown for future use in same session
   const sel = document.getElementById('new-region');
   const alreadyInDropdown = [...sel.options].some(o => o.value === region);
   if (!alreadyInDropdown) {
@@ -1929,6 +1929,7 @@ function addProperty() {
     sel.value = region;
   }
 
+  sbSave(addr);
   renderStats();
   renderTopCards();
   renderTable();
@@ -1937,12 +1938,8 @@ function addProperty() {
 function togglePropertyType(addr) {
   const prop = allProperties.find(p => p.addr === addr);
   if (!prop) return;
-
-  // Flip type
   const wasReplacement = prop.type === 'replacement';
   prop.type = wasReplacement ? 'candidate' : 'replacement';
-
-  // Move between lists
   if (wasReplacement) {
     baselineSites  = baselineSites.filter(p => p.addr !== addr);
     workingCandidates.unshift(prop);
@@ -1950,9 +1947,8 @@ function togglePropertyType(addr) {
     workingCandidates = workingCandidates.filter(p => p.addr !== addr);
     baselineSites.unshift(prop);
   }
-
-  // Recompute all LVAR since baselines changed
   recomputeAllLvar();
+  sbSave(addr);
   renderStats();
   renderTopCards();
   renderTable();
@@ -1965,7 +1961,6 @@ function updatePropField(addr, field, rawVal) {
   const val = rawVal === '' ? null : parseFloat(rawVal);
   prop[field] = isNaN(val) ? null : val;
 
-  // Recompute derived fields
   prop.sqftTBD   = prop.sqft === null;
   prop.rentTBD   = prop.ppsf === null || prop.sqftTBD;
   prop.totalPpsf = prop.rentTBD ? null : +(prop.ppsf + (prop.nnn || 0)).toFixed(2);
@@ -1975,12 +1970,12 @@ function updatePropField(addr, field, rawVal) {
   const SCAN_PCT = 0.28, ROOM_SF = 121;
   prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * SCAN_PCT / ROOM_SF);
 
-  // Recompute LVAR if it's a candidate
   if (prop.type === 'candidate') {
     const b = computeBaseline(prop);
     Object.assign(prop, b);
   }
 
+  sbSave(addr);
   renderStats();
   renderTopCards();
   renderTable();
@@ -2222,50 +2217,6 @@ async function sbSave(addr) {
     showSync('error');
   }
 }
-
-// ─────────────────────────────────────────────
-// PATCH existing setOp / setOpWide / setStatus /
-// updatePropField / promoteToBaseline to auto-save
-// ─────────────────────────────────────────────
-const _origSetOp = setOp;
-setOp = function(addr, field, val) {
-  _origSetOp(addr, field, val);
-  sbSave(addr);
-};
-
-const _origSetOpFromSpecs = setOpFromSpecs;
-setOpFromSpecs = function(addr, field, rawVal) {
-  _origSetOpFromSpecs(addr, field, rawVal);
-  sbSave(addr);
-};
-
-const _origSetStatus = setStatus;
-setStatus = function(addr, rawVal, el) {
-  _origSetStatus(addr, rawVal, el);
-  sbSave(addr);
-};
-
-const _origUpdatePropField = updatePropField;
-updatePropField = function(addr, field, rawVal) {
-  _origUpdatePropField(addr, field, rawVal);
-  sbSave(addr);
-};
-
-const _origPromoteToBaseline = promoteToBaseline;
-promoteToBaseline = function(addr) {
-  _origPromoteToBaseline(addr);
-  sbSave(addr);
-};
-
-const _origAddProperty = addProperty;
-addProperty = function() {
-  // Snapshot addresses before adding
-  const addrsBefore = new Set(allProperties.map(p => p.addr));
-  _origAddProperty();
-  // Find the newly added property by diffing addresses
-  const newProp = allProperties.find(p => !addrsBefore.has(p.addr));
-  if (newProp) sbSave(newProp.addr);
-};
 
 // ─────────────────────────────────────────────
 // INIT — gated behind password
