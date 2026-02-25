@@ -1993,17 +1993,21 @@ async function deleteProperty(addr) {
   delete opState[addr];
   delete geoCache[addr];
 
-  // Save deleted flag to Supabase so it stays gone on refresh
+  // Save deleted flag to Supabase
   showSync('saving');
+  console.log('Deleting:', addr);
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}`, {
       method: 'POST',
       headers: SB_HEADERS,
       body: JSON.stringify({ addr, deleted: true, updated_at: new Date().toISOString() })
     });
+    const text = await res.text();
+    console.log('Delete save response:', res.status, text);
+    if (!res.ok) throw new Error(text);
     showSync('saved');
   } catch(e) {
-    console.error('Supabase delete flag error:', e);
+    console.error('Delete save failed:', e);
     showSync('error');
   }
 
@@ -2098,10 +2102,12 @@ async function sbLoad() {
   try {
     const res  = await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}?select=*`, { headers: SB_HEADERS });
     const rows = await res.json();
-    if (!Array.isArray(rows)) return;
+    console.log('sbLoad response:', res.status, rows);
+    if (!Array.isArray(rows)) { console.error('sbLoad: unexpected response', rows); return; }
 
     // First pass — collect deleted addresses and purge from all lists
     const deletedAddrs = new Set(rows.filter(r => r.deleted).map(r => r.addr));
+    console.log('Deleted addresses from Supabase:', [...deletedAddrs]);
     if (deletedAddrs.size > 0) {
       deletedAddrs.forEach(addr => {
         const idx = allProperties.findIndex(p => p.addr === addr);
