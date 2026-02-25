@@ -1987,21 +1987,24 @@ async function deleteProperty(addr) {
   // Remove from all in-memory lists
   const idx = allProperties.findIndex(p => p.addr === addr);
   if (idx === -1) return;
-  const prop = allProperties[idx];
   allProperties.splice(idx, 1);
   workingCandidates = workingCandidates.filter(p => p.addr !== addr);
   baselineSites     = baselineSites.filter(p => p.addr !== addr);
   delete opState[addr];
   delete geoCache[addr];
 
-  // Delete from Supabase
+  // Save deleted flag to Supabase so it stays gone on refresh
+  showSync('saving');
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}?addr=eq.${encodeURIComponent(addr)}`, {
-      method: 'DELETE',
-      headers: { ...SB_HEADERS, 'Prefer': '' }
+    await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ addr, deleted: true, updated_at: new Date().toISOString() })
     });
+    showSync('saved');
   } catch(e) {
-    console.error('Supabase delete error:', e);
+    console.error('Supabase delete flag error:', e);
+    showSync('error');
   }
 
   recomputeAllLvar();
@@ -2097,7 +2100,20 @@ async function sbLoad() {
     const rows = await res.json();
     if (!Array.isArray(rows)) return;
 
-    rows.forEach(row => {
+    // First pass — collect deleted addresses and purge from all lists
+    const deletedAddrs = new Set(rows.filter(r => r.deleted).map(r => r.addr));
+    if (deletedAddrs.size > 0) {
+      deletedAddrs.forEach(addr => {
+        const idx = allProperties.findIndex(p => p.addr === addr);
+        if (idx !== -1) allProperties.splice(idx, 1);
+        delete opState[addr];
+      });
+      workingCandidates = workingCandidates.filter(p => !deletedAddrs.has(p.addr));
+      baselineSites     = baselineSites.filter(p => !deletedAddrs.has(p.addr));
+    }
+
+    // Second pass — restore data for non-deleted rows
+    rows.filter(r => !r.deleted).forEach(row => {
       const addr = row.addr;
 
       // If property doesn't exist in hardcoded data, reconstruct it
@@ -2167,11 +2183,16 @@ async function sbLoad() {
         prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
         prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * 0.28 / 121);
 
-        // Restore type changes (promotions)
+        // Restore type changes (promotions AND demotions)
         if (row.type === 'replacement' && prop.type === 'candidate') {
           prop.type = 'replacement';
           workingCandidates = workingCandidates.filter(p => p.addr !== addr);
           if (!baselineSites.find(p => p.addr === addr)) baselineSites.push(prop);
+        }
+        if (row.type === 'candidate' && prop.type === 'replacement') {
+          prop.type = 'candidate';
+          baselineSites = baselineSites.filter(p => p.addr !== addr);
+          if (!workingCandidates.find(p => p.addr === addr)) workingCandidates.push(prop);
         }
 
         if (prop.type === 'candidate') Object.assign(prop, computeBaseline(prop));
