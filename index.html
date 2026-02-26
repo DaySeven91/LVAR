@@ -362,9 +362,7 @@ const SB_TABLE      = 'property_data';
   .proxy-gear-btn { background: none; border: 1px solid var(--border); color: var(--text-dimmer); font-size: 0.72rem; cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: all 0.15s; line-height: 1; flex-shrink: 0; margin-top: 1px; }
   .proxy-gear-btn:hover { color: var(--accent3); border-color: var(--accent3); background: rgba(58,125,94,0.07); }
 
-  .btn.proxy-eligible { position: relative; }
-  .btn.proxy-eligible .gear { font-size: 0.6rem; opacity: 0.5; margin-left: 2px; cursor: pointer; }
-  .btn.has-proxy { border-color: var(--accent3) !important; color: var(--accent3) !important; }
+
 
   /* PROXY BASELINE POPOVER */
   #proxy-popover {
@@ -381,8 +379,7 @@ const SB_TABLE      = 'property_data';
   .proxy-option.active { background: rgba(58,125,94,0.1); color: var(--accent3); font-weight: 600; }
   .proxy-option .proxy-tick { opacity: 0; color: var(--accent3); }
   .proxy-option.active .proxy-tick { opacity: 1; }
-  .btn.has-proxy { border-color: var(--accent3); color: var(--accent3); }
-  .btn.has-proxy::after { content: ' ⚙'; font-size: 0.6rem; opacity: 0.7; }
+
 
   .specs-popover { position: fixed; z-index: 600;
     background: var(--surface); border: 1px solid var(--border);
@@ -2201,8 +2198,6 @@ function injectRegionFilterButton(region) {
   btn.onclick = function() { filterRegion(region, this); };
   btn.oncontextmenu = function(e) { e.preventDefault(); openProxyPopover(region, this); };
   btn.title = 'Right-click to change proxy baseline';
-  const hasOwnBaseline = replacementSites.some(p => p.region === region);
-  if (!hasOwnBaseline && proxyOverrides[region]) btn.classList.add('has-proxy');
   btnGroup.appendChild(btn);
 }
 
@@ -2254,13 +2249,6 @@ function setProxy(region, proxyRegion) {
   proxyOverrides[region] = proxyRegion;
   localStorage.setItem('lvar_proxy_overrides', JSON.stringify(proxyOverrides));
   buildRegionalBaseline(region);
-
-  // Mark region button visually
-  const btnGroup = document.querySelector('.btn-group[data-region-group]');
-  if (btnGroup) {
-    const btn = [...btnGroup.querySelectorAll('.btn')].find(b => b.dataset.region === region);
-    if (btn) btn.classList.add('has-proxy');
-  }
 
   document.getElementById('proxy-popover').classList.remove('open');
   activeProxyRegion = null;
@@ -2721,15 +2709,6 @@ async function sbSave(addr) {
 // INIT — gated behind password
 // ─────────────────────────────────────────────
 async function initDashboard() {
-  // Apply saved proxy overrides to hardcoded new-market buttons
-  const btnGroup = document.querySelector('.btn-group[data-region-group]');
-  if (btnGroup) {
-    [...btnGroup.querySelectorAll('.btn[data-region]')].forEach(btn => {
-      const r = btn.dataset.region;
-      const hasOwn = replacementSites.some(p => p.region === r);
-      if (!hasOwn && proxyOverrides[r]) btn.classList.add('has-proxy');
-    });
-  }
   await sbLoad();
   renderStats();
   renderTopCards();
