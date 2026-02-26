@@ -330,7 +330,7 @@ const SB_TABLE      = 'property_data';
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 14px 16px;
     box-shadow: 0 8px 32px rgba(28,49,51,0.18);
-    min-width: 260px; display: none;
+    min-width: 320px; display: none;
     animation: fadeUp 0.15s ease both;
   }
   #ops-popover.open { display: block; }
@@ -359,6 +359,31 @@ const SB_TABLE      = 'property_data';
   .floorplan-preview { max-width: 100%; max-height: calc(90vh - 120px); border-radius: 6px; object-fit: contain; }
   .floorplan-pdf-frame { width: 70vw; height: calc(90vh - 120px); border: none; border-radius: 6px; }
 
+  .proxy-gear-btn { background: none; border: 1px solid var(--border); color: var(--text-dimmer); font-size: 0.72rem; cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: all 0.15s; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+  .proxy-gear-btn:hover { color: var(--accent3); border-color: var(--accent3); background: rgba(58,125,94,0.07); }
+
+  .btn.proxy-eligible { position: relative; }
+  .btn.proxy-eligible .gear { font-size: 0.6rem; opacity: 0.5; margin-left: 2px; cursor: pointer; }
+  .btn.has-proxy { border-color: var(--accent3) !important; color: var(--accent3) !important; }
+
+  /* PROXY BASELINE POPOVER */
+  #proxy-popover {
+    position: fixed; z-index: 700;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+    box-shadow: 0 8px 32px rgba(28,49,51,0.18);
+    min-width: 200px; display: none;
+    animation: fadeUp 0.15s ease both;
+  }
+  #proxy-popover.open { display: block; }
+  .proxy-option { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text); transition: background 0.12s; }
+  .proxy-option:hover { background: var(--surface2); }
+  .proxy-option.active { background: rgba(58,125,94,0.1); color: var(--accent3); font-weight: 600; }
+  .proxy-option .proxy-tick { opacity: 0; color: var(--accent3); }
+  .proxy-option.active .proxy-tick { opacity: 1; }
+  .btn.has-proxy { border-color: var(--accent3); color: var(--accent3); }
+  .btn.has-proxy::after { content: ' ⚙'; font-size: 0.6rem; opacity: 0.7; }
+
   .specs-popover { position: fixed; z-index: 600;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 14px 16px;
@@ -370,7 +395,7 @@ const SB_TABLE      = 'property_data';
   .specs-popover-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
   .specs-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
   .specs-row:last-child { margin-bottom: 0; }
-  .specs-label { font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dimmer); white-space: nowrap; min-width: 68px; }
+  .specs-label { font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dimmer); white-space: nowrap; min-width: 130px; }
 
   /* STATUS COLUMN */
   .status-cell { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
@@ -487,6 +512,13 @@ const SB_TABLE      = 'property_data';
 </head>
 <body>
 
+<!-- PROXY BASELINE POPOVER -->
+<div id="proxy-popover">
+  <div class="specs-popover-title" style="margin-bottom:8px;">Proxy Baseline</div>
+  <div style="font-size:0.62rem;color:var(--text-dimmer);margin-bottom:10px;line-height:1.4;">Compare <strong id="proxy-region-label" style="color:var(--text)"></strong> against:</div>
+  <div id="proxy-options-body"></div>
+</div>
+
 <!-- OPS SPECS POPOVER -->
 <div id="ops-popover">
   <div class="specs-popover-title">Ops Specs</div>
@@ -565,14 +597,14 @@ const SB_TABLE      = 'property_data';
     <span class="control-label">Region</span>
     <div class="btn-group" data-region-group>
       <button class="btn active" onclick="filterRegion('all', this)">All</button>
-      <button class="btn" onclick="filterRegion('Los Angeles', this)">LA</button>
-      <button class="btn" onclick="filterRegion('Bay Area', this)">Bay Area</button>
-      <button class="btn" onclick="filterRegion('Seattle', this)">Seattle</button>
-      <button class="btn" onclick="filterRegion('Texas', this)">Texas</button>
-      <button class="btn" onclick="filterRegion('Chicago', this)">Chicago</button>
-      <button class="btn" onclick="filterRegion('Boston', this)">Boston</button>
-      <button class="btn" onclick="filterRegion('Atlanta', this)">Atlanta</button>
-      <button class="btn" onclick="filterRegion('Philadelphia', this)">Philadelphia</button>
+      <button class="btn" data-region="Los Angeles" onclick="filterRegion('Los Angeles', this)">LA</button>
+      <button class="btn" data-region="Bay Area" onclick="filterRegion('Bay Area', this)">Bay Area</button>
+      <button class="btn" data-region="Seattle" onclick="filterRegion('Seattle', this)">Seattle</button>
+      <button class="btn" data-region="Texas" onclick="filterRegion('Texas', this)">Texas</button>
+      <button class="btn" data-region="Chicago" onclick="filterRegion('Chicago', this)">Chicago</button>
+      <button class="btn" data-region="Boston" onclick="filterRegion('Boston', this)">Boston</button>
+      <button class="btn proxy-eligible" data-region="Atlanta" onclick="filterRegion('Atlanta', this)" oncontextmenu="event.preventDefault();openProxyPopover('Atlanta',this)">Atlanta</button>
+      <button class="btn proxy-eligible" data-region="Philadelphia" onclick="filterRegion('Philadelphia', this)" oncontextmenu="event.preventDefault();openProxyPopover('Philadelphia',this)">Philadelphia</button>
     </div>
   </div>
   <div class="control-group">
@@ -829,26 +861,35 @@ function median(arr) {
 const regions = [...new Set(allProperties.map(p => p.region))];
 const regionalBaseline = {};
 
+// Proxy overrides — maps region → proxy region name. Persisted in localStorage.
+const proxyOverrides = JSON.parse(localStorage.getItem('lvar_proxy_overrides') || '{}');
+
 const NEW_MARKETS = ['Atlanta', 'Philadelphia']; // no existing BodySpec sites yet
 
-regions.forEach(r => {
+function buildRegionalBaseline(r) {
   const rSites = replacementSites.filter(p => p.region === r);
-  if (rSites.length === 0) {
-    // New market — use Chicago as closest comparable proxy
-    const chicagoSites = replacementSites.filter(p => p.region === 'Chicago');
-    regionalBaseline[r] = {
-      totalPpsf: +median(chicagoSites.map(p => p.totalPpsf)).toFixed(2),
-      sqft:       Math.round(median(chicagoSites.map(p => p.sqft))),
-      source:    'Chicago (proxy)'
-    };
-  } else {
+  if (rSites.length > 0) {
+    // Has own baseline sites — always use them
     regionalBaseline[r] = {
       totalPpsf: +median(rSites.map(p => p.totalPpsf)).toFixed(2),
       sqft:       Math.round(median(rSites.map(p => p.sqft))),
       source:    r
     };
+  } else {
+    // New market — use override if set, else default to Chicago
+    const proxy = proxyOverrides[r] || 'Chicago';
+    const proxySites = replacementSites.filter(p => p.region === proxy);
+    const fallback = proxySites.length > 0 ? proxySites : replacementSites.filter(p => p.region === 'Chicago');
+    const label = proxySites.length > 0 ? proxy : 'Chicago';
+    regionalBaseline[r] = {
+      totalPpsf: +median(fallback.map(p => p.totalPpsf)).toFixed(2),
+      sqft:       Math.round(median(fallback.map(p => p.sqft))),
+      source:    `${label} (proxy)`
+    };
   }
-});
+}
+
+regions.forEach(r => buildRegionalBaseline(r));
 
 // ─── COMPUTE LVAR ─────────────────────────────
 // LVAR = how much better or worse vs. regional baseline
@@ -1358,11 +1399,11 @@ function openOpsSpecs(addr, btnEl) {
     mkSelect('Above 1st Floor', 'aboveFirstFloor', [
       ['__null__','— TBD'],['Yes','Yes'],['No','No']
     ]) +
-    mkInput('# Steps to 2nd Fl.', 'stepsCount', 'e.g. 12') +
+    mkInput('Steps to 2nd Floor', 'stepsCount', 'e.g. 12') +
     mkSelect('Elevator', 'elevatorType', [
       ['__null__','— TBD'],['None','None'],['Regular','Regular'],['Freight','Freight']
     ]) +
-    mkInput('Elevator Dims', 'elevatorDims', 'e.g. 6\'×8\'') +
+    mkInput('Elevator Dimensions', 'elevatorDims', 'e.g. 6\'×8\'') +
     mkSelect('18-Wheeler Parking', 'eighteenWheeler', [
       ['__null__','— TBD'],['Yes','Yes'],['No','No']
     ]) +
@@ -1596,23 +1637,39 @@ function renderTable() {
       : `<div class="annual-rent">${fmt(p.totalAnnual)}</div><div class="annual-sub">incl. NNN</div>`;
 
     // vs Baseline cell
+    // Gear button for regions without own baselines (proxy-eligible)
+    const hasOwnBaseline = replacementSites.some(s => s.region === p.region);
+    const gearBtn = (!isRep && !hasOwnBaseline)
+      ? `<button class="proxy-gear-btn" onclick="event.stopPropagation();openProxyPopover('${p.region.replace(/'/g,"\\'")}',this)" title="Change proxy baseline">⚙</button>`
+      : '';
+
     let vsBaselineCell;
     if (isRep) {
       vsBaselineCell = `<div class="baseline-pill">⬛ Baseline</div>`;
     } else if (isTBD) {
-      vsBaselineCell = `<div style="font-size:0.7rem;color:var(--text-dimmer);">— rent TBD</div>
-        <div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:2px;">baseline $${p.baselinePpsf}/SF · ${p.baselineSqft.toLocaleString()} SF (${p.baselineSource})</div>`;
+      vsBaselineCell = `<div style="display:flex;align-items:center;gap:6px;">
+        <div>
+          <div style="font-size:0.7rem;color:var(--text-dimmer);">— rent TBD</div>
+          <div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:2px;">baseline $${p.baselinePpsf}/SF · ${p.baselineSqft ? p.baselineSqft.toLocaleString() : '—'} SF (${p.baselineSource})</div>
+        </div>
+        ${gearBtn}
+      </div>`;
     } else {
       const vsPsfColor  = p.vsPsf > 0 ? 'color:var(--red)' : 'color:var(--green)';
       const vsPsfSign   = p.vsPsf > 0 ? '+' : '';
       const vsSqftColor = p.vsSqft >= 0 ? 'color:var(--green)' : 'color:var(--red)';
       const vsSqftSign  = p.vsSqft > 0 ? '+' : '';
-      vsBaselineCell = `<div style="font-size:0.72rem;">
-           <span style="${vsPsfColor}">${vsPsfSign}$${Math.abs(p.vsPsf).toFixed(2)}/SF</span>
-           <span style="color:var(--text-dimmer);margin:0 3px;">·</span>
-           <span style="${vsSqftColor}">${vsSqftSign}${p.vsSqft.toLocaleString()} SF</span>
-         </div>
-         <div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:2px;">vs $${p.baselinePpsf}/SF · ${p.baselineSqft.toLocaleString()} SF (${p.baselineSource !== p.region ? p.baselineSource : 'baseline'})</div>`;
+      vsBaselineCell = `<div style="display:flex;align-items:flex-start;gap:6px;">
+        <div>
+          <div style="font-size:0.72rem;">
+            <span style="${vsPsfColor}">${vsPsfSign}$${Math.abs(p.vsPsf).toFixed(2)}/SF</span>
+            <span style="color:var(--text-dimmer);margin:0 3px;">·</span>
+            <span style="${vsSqftColor}">${vsSqftSign}${p.vsSqft.toLocaleString()} SF</span>
+          </div>
+          <div style="font-size:0.62rem;color:var(--text-dimmer);margin-top:2px;">vs $${p.baselinePpsf}/SF · ${p.baselineSqft.toLocaleString()} SF (${p.baselineSource !== p.region ? p.baselineSource : 'baseline'})</div>
+        </div>
+        ${gearBtn}
+      </div>`;
     }
 
     // Notes row
@@ -2098,19 +2155,95 @@ function getSelectedRegion() {
 }
 
 function injectRegionFilterButton(region) {
-  // Don't add if already exists
   const btnGroup = document.querySelector('.btn-group[data-region-group]');
   if (!btnGroup) return;
   const exists = [...btnGroup.querySelectorAll('.btn')].some(b =>
-    b.textContent.trim() === region
+    b.dataset.region === region
   );
   if (exists) return;
   const btn = document.createElement('button');
   btn.className = 'btn';
   btn.textContent = region;
+  btn.dataset.region = region;
   btn.onclick = function() { filterRegion(region, this); };
+  btn.oncontextmenu = function(e) { e.preventDefault(); openProxyPopover(region, this); };
+  btn.title = 'Right-click to change proxy baseline';
+  const hasOwnBaseline = replacementSites.some(p => p.region === region);
+  if (!hasOwnBaseline && proxyOverrides[region]) btn.classList.add('has-proxy');
   btnGroup.appendChild(btn);
 }
+
+// ─────────────────────────────────────────────
+// PROXY BASELINE POPOVER
+// ─────────────────────────────────────────────
+let activeProxyRegion = null;
+
+function openProxyPopover(region, btnEl) {
+  const hasOwnBaseline = replacementSites.some(p => p.region === region);
+  if (hasOwnBaseline) return;
+
+  const pop  = document.getElementById('proxy-popover');
+  const body = document.getElementById('proxy-options-body');
+
+  if (activeProxyRegion === region && pop.classList.contains('open')) {
+    pop.classList.remove('open');
+    activeProxyRegion = null;
+    return;
+  }
+  activeProxyRegion = region;
+  document.getElementById('proxy-region-label').textContent = region;
+
+  const baselineRegions = [...new Set(replacementSites.map(p => p.region))];
+  const current = proxyOverrides[region] || 'Chicago';
+
+  body.innerHTML = baselineRegions.map(r => `
+    <div class="proxy-option ${r === current ? 'active' : ''}" onclick="setProxy('${region}','${r}')">
+      <span>${r}</span>
+      <span class="proxy-tick">✓</span>
+    </div>
+  `).join('');
+
+  const rect = btnEl.getBoundingClientRect();
+  pop.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  const spaceBelow = window.innerHeight - rect.bottom - 8;
+  if (spaceBelow >= 220) {
+    pop.style.top = (rect.bottom + 6) + 'px';
+    pop.style.bottom = 'auto';
+  } else {
+    pop.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+    pop.style.top = 'auto';
+  }
+  pop.classList.add('open');
+}
+
+function setProxy(region, proxyRegion) {
+  proxyOverrides[region] = proxyRegion;
+  localStorage.setItem('lvar_proxy_overrides', JSON.stringify(proxyOverrides));
+  buildRegionalBaseline(region);
+
+  // Mark region button visually
+  const btnGroup = document.querySelector('.btn-group[data-region-group]');
+  if (btnGroup) {
+    const btn = [...btnGroup.querySelectorAll('.btn')].find(b => b.dataset.region === region);
+    if (btn) btn.classList.add('has-proxy');
+  }
+
+  document.getElementById('proxy-popover').classList.remove('open');
+  activeProxyRegion = null;
+  recomputeAllLvar();
+  renderStats();
+  renderTopCards();
+  renderTable();
+}
+
+document.addEventListener('mousedown', e => {
+  const pop = document.getElementById('proxy-popover');
+  if (!pop || !pop.classList.contains('open')) return;
+  if (!pop.contains(e.target)) {
+    pop.classList.remove('open');
+    activeProxyRegion = null;
+  }
+});
 
 function toggleAddForm() {
   const form = document.getElementById('add-prop-form');
@@ -2299,14 +2432,18 @@ function recomputeAllLvar() {
 }
 
 function computeBaseline(p) {
-  // Match existing computeBaseline logic from the data section
   const regionBaselines = baselineSites.filter(b => b.region === p.region && b.totalPpsf !== null);
-  let src = p.region;
+  let src   = p.region;
   let bases = regionBaselines;
   if (bases.length === 0) {
-    // proxy: Chicago
-    bases = baselineSites.filter(b => b.region === 'Chicago' && b.totalPpsf !== null);
-    src = 'Chicago';
+    // Use proxy override if set, else default to Chicago
+    const proxy = proxyOverrides[p.region] || 'Chicago';
+    bases = baselineSites.filter(b => b.region === proxy && b.totalPpsf !== null);
+    src   = proxy;
+    if (bases.length === 0) {
+      bases = baselineSites.filter(b => b.region === 'Chicago' && b.totalPpsf !== null);
+      src   = 'Chicago';
+    }
   }
   if (bases.length === 0) return { lvar: null, baselinePpsf: null, baselineSqft: null, baselineSource: src, vsPsf: null, vsSqft: null };
 
@@ -2540,6 +2677,15 @@ async function sbSave(addr) {
 // INIT — gated behind password
 // ─────────────────────────────────────────────
 async function initDashboard() {
+  // Apply saved proxy overrides to hardcoded new-market buttons
+  const btnGroup = document.querySelector('.btn-group[data-region-group]');
+  if (btnGroup) {
+    [...btnGroup.querySelectorAll('.btn[data-region]')].forEach(btn => {
+      const r = btn.dataset.region;
+      const hasOwn = replacementSites.some(p => p.region === r);
+      if (!hasOwn && proxyOverrides[r]) btn.classList.add('has-proxy');
+    });
+  }
   await sbLoad();
   renderStats();
   renderTopCards();
