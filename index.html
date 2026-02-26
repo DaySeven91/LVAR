@@ -320,8 +320,46 @@ const SB_TABLE      = 'property_data';
   .specs-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
   .specs-dot.filled { background: var(--accent3); }
 
-  .specs-popover {
+  /* RESTAURANT PRIOR USE — red row demotion */
+  tr.row-restaurant-demotion td { background: rgba(217,79,79,0.06) !important; }
+  tr.row-restaurant-demotion { border-left: 3px solid var(--red); }
+
+  /* OPS SPECS POPOVER */
+  #ops-popover {
     position: fixed; z-index: 600;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+    box-shadow: 0 8px 32px rgba(28,49,51,0.18);
+    min-width: 260px; display: none;
+    animation: fadeUp 0.15s ease both;
+  }
+  #ops-popover.open { display: block; }
+  .ops-input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.7rem; padding: 5px 8px; border-radius: 5px; outline: none; transition: border-color 0.15s; }
+  .ops-input:focus { border-color: var(--accent3); }
+  .ops-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px solid var(--border); color: var(--text-dim); font-family: 'DM Mono', monospace; font-size: 0.62rem; padding: 3px 8px; border-radius: 5px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .ops-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+  .ops-btn.has-data { border-color: var(--accent3); color: var(--accent3); background: rgba(58,125,94,0.07); }
+
+  /* FLOORPLAN BUTTON */
+  .floorplan-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: 1px solid var(--border); color: var(--text-dim); font-family: 'DM Mono', monospace; font-size: 0.62rem; padding: 3px 8px; border-radius: 5px; cursor: pointer; transition: all 0.15s; white-space: nowrap; margin-top: 4px; }
+  .floorplan-btn:hover { border-color: var(--accent3); color: var(--accent3); }
+  .floorplan-btn.has-file { border-color: var(--accent3); color: var(--accent3); background: rgba(58,125,94,0.07); }
+  .floorplan-btn.uploading { opacity: 0.6; cursor: wait; }
+
+  /* FLOORPLAN VIEWER MODAL */
+  #floorplan-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 800; display: none; align-items: center; justify-content: center; }
+  #floorplan-modal.open { display: flex; }
+  .floorplan-modal-box { background: var(--surface); border-radius: 12px; padding: 20px; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 16px 60px rgba(0,0,0,0.4); }
+  .floorplan-modal-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+  .floorplan-modal-actions { display: flex; gap: 8px; align-items: center; }
+  .floorplan-modal-close { margin-left: auto; background: none; border: 1px solid var(--border); color: var(--text-dim); font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 4px 12px; border-radius: 5px; cursor: pointer; }
+  .floorplan-modal-close:hover { border-color: var(--red); color: var(--red); }
+  .floorplan-download { background: var(--accent3); color: #fff; border: none; font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 4px 12px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .floorplan-download:hover { background: var(--accent2); }
+  .floorplan-preview { max-width: 100%; max-height: calc(90vh - 120px); border-radius: 6px; object-fit: contain; }
+  .floorplan-pdf-frame { width: 70vw; height: calc(90vh - 120px); border: none; border-radius: 6px; }
+
+  .specs-popover { position: fixed; z-index: 600;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 10px; padding: 14px 16px;
     box-shadow: 0 8px 32px rgba(28,49,51,0.18);
@@ -448,6 +486,27 @@ const SB_TABLE      = 'property_data';
 </style>
 </head>
 <body>
+
+<!-- OPS SPECS POPOVER -->
+<div id="ops-popover">
+  <div class="specs-popover-title">Ops Specs</div>
+  <div id="ops-popover-body"></div>
+</div>
+
+<!-- FLOORPLAN VIEWER MODAL -->
+<div id="floorplan-modal">
+  <div class="floorplan-modal-box">
+    <div class="floorplan-modal-actions">
+      <span class="floorplan-modal-title" id="floorplan-modal-title">Floorplan</span>
+      <a class="floorplan-download" id="floorplan-download-btn" download>⬇ Download</a>
+      <button class="floorplan-modal-close" onclick="closeFloorplan()">✕ Close</button>
+    </div>
+    <div id="floorplan-modal-content"></div>
+  </div>
+</div>
+
+<!-- HIDDEN FILE INPUT -->
+<input type="file" id="floorplan-file-input" accept="image/*,.pdf" style="display:none" onchange="handleFloorplanUpload(this)">
 
 <!-- PASSWORD GATE -->
 <div id="pw-gate">
@@ -1056,15 +1115,19 @@ function opDropdown(addr, field, currentVal) {
 // WIDE DROPDOWN — Prior Use & Build-Out
 // ─────────────────────────────────────────────
 const PRIOR_USE_OPTIONS = [
-  { val: '__null__',   label: '— TBD' },
-  { val: '1st Gen',    label: '1st Gen',     cls: 'pu-1stgen' },
-  { val: 'Restaurant', label: 'Restaurant',  cls: 'pu-restaurant' },
-  { val: 'PT Clinic',  label: 'PT Clinic',   cls: 'pu-ptclinic' },
-  { val: 'Gym',        label: 'Gym',         cls: 'pu-gym' },
-  { val: 'Med Spa',    label: 'Med Spa',     cls: 'pu-medspa' },
-  { val: 'Jeweler',    label: 'Jeweler',     cls: 'pu-jeweler' },
-  { val: 'Coffee Shop',label: 'Coffee Shop', cls: 'pu-coffee' },
-  { val: 'Other',      label: 'Other',       cls: 'pu-other' },
+  { val: '__null__',       label: '— TBD' },
+  { val: '1st Gen',        label: '1st Gen',         cls: 'pu-1stgen' },
+  { val: 'Restaurant',     label: 'Restaurant',       cls: 'pu-restaurant' },
+  { val: 'PT Clinic',      label: 'PT Clinic',        cls: 'pu-ptclinic' },
+  { val: 'Gym',            label: 'Gym',              cls: 'pu-gym' },
+  { val: 'Med Spa',        label: 'Med Spa',          cls: 'pu-medspa' },
+  { val: 'Jeweler',        label: 'Jeweler',          cls: 'pu-jeweler' },
+  { val: 'Coffee Shop',    label: 'Coffee Shop',      cls: 'pu-coffee' },
+  { val: 'Medical Office', label: 'Medical Office',   cls: 'pu-medical' },
+  { val: 'Dental Office',  label: 'Dental Office',    cls: 'pu-dental' },
+  { val: 'General Retail', label: 'General Retail',   cls: 'pu-retail' },
+  { val: 'Pet Grooming',   label: 'Pet Grooming',     cls: 'pu-petgrooming' },
+  { val: 'Other',          label: 'Other',            cls: 'pu-other' },
 ];
 
 const BUILD_OUT_OPTIONS = [
@@ -1189,7 +1252,10 @@ function openSpecs(addr, btnEl) {
     mkRow('Prior Use', 'priorUse', [
       ['__null__','— TBD'],['1st Gen','1st Gen'],['Restaurant','Restaurant'],
       ['PT Clinic','PT Clinic'],['Gym','Gym'],['Med Spa','Med Spa'],
-      ['Jeweler','Jeweler'],['Coffee Shop','Coffee Shop'],['Other','Other']
+      ['Jeweler','Jeweler'],['Coffee Shop','Coffee Shop'],
+      ['Medical Office','Medical Office'],['Dental Office','Dental Office'],
+      ['General Retail','General Retail'],['Pet Grooming','Pet Grooming'],
+      ['Other','Other']
     ]) +
     mkRow('Build-Out', 'buildOut', [
       ['__null__','— TBD'],['Built out w/ Rooms','Built out w/ Rooms'],
@@ -1197,11 +1263,20 @@ function openSpecs(addr, btnEl) {
       ['Needs Min Work','Needs Min Work'],['Needs A LOT','Needs A LOT']
     ]);
 
-  // Position below the button
+  // Smart position — flip above if not enough room below
   const rect = btnEl.getBoundingClientRect();
+  const popH = 280; // estimated popover height
+  const spaceBelow = window.innerHeight - rect.bottom - 8;
+  const spaceAbove = rect.top - 8;
   pop.style.position = 'fixed';
-  pop.style.top  = (rect.bottom + 6) + 'px';
-  pop.style.left = Math.min(rect.left, window.innerWidth - 250) + 'px';
+  pop.style.left = Math.min(rect.left, window.innerWidth - 260) + 'px';
+  if (spaceBelow >= popH || spaceBelow >= spaceAbove) {
+    pop.style.top    = (rect.bottom + 6) + 'px';
+    pop.style.bottom = 'auto';
+  } else {
+    pop.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+    pop.style.top    = 'auto';
+  }
   pop.classList.add('open');
 }
 
@@ -1230,6 +1305,179 @@ document.addEventListener('mousedown', e => {
     renderTable();
   }
 });
+
+document.addEventListener('mousedown', e => {
+  const pop = document.getElementById('ops-popover');
+  if (!pop || !pop.classList.contains('open')) return;
+  if (!pop.contains(e.target) && !e.target.closest('.ops-btn')) {
+    pop.classList.remove('open');
+    activeOpsAddr = null;
+  }
+});
+
+// ─────────────────────────────────────────────
+// OPS SPECS POPOVER
+// ─────────────────────────────────────────────
+let activeOpsAddr = null;
+
+function openOpsSpecs(addr, btnEl) {
+  const pop  = document.getElementById('ops-popover');
+  const body = document.getElementById('ops-popover-body');
+  const op   = opState[addr] || {};
+  const esc  = addr.replace(/'/g, "\\'");
+
+  if (activeOpsAddr === addr && pop.classList.contains('open')) {
+    pop.classList.remove('open');
+    activeOpsAddr = null;
+    return;
+  }
+  activeOpsAddr = addr;
+
+  const mkSelect = (label, field, options) => {
+    const cur = op[field] || '__null__';
+    const opts = options.map(([v, l]) =>
+      `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`
+    ).join('');
+    return `<div class="specs-row" style="margin-bottom:7px;">
+      <span class="specs-label">${label}</span>
+      <select class="op-select-wide" onchange="setOpsField('${esc}','${field}',this.value)">${opts}</select>
+    </div>`;
+  };
+
+  const mkInput = (label, field, placeholder) => {
+    const cur = op[field] || '';
+    return `<div class="specs-row" style="margin-bottom:7px;">
+      <span class="specs-label">${label}</span>
+      <input class="ops-input" style="width:110px;" placeholder="${placeholder}" value="${cur}"
+        onchange="setOpsField('${esc}','${field}',this.value)"
+        oninput="setOpsField('${esc}','${field}',this.value)">
+    </div>`;
+  };
+
+  body.innerHTML =
+    mkSelect('Above 1st Floor', 'aboveFirstFloor', [
+      ['__null__','— TBD'],['Yes','Yes'],['No','No']
+    ]) +
+    mkInput('# Steps to 2nd Fl.', 'stepsCount', 'e.g. 12') +
+    mkSelect('Elevator', 'elevatorType', [
+      ['__null__','— TBD'],['None','None'],['Regular','Regular'],['Freight','Freight']
+    ]) +
+    mkInput('Elevator Dims', 'elevatorDims', 'e.g. 6\'×8\'') +
+    mkSelect('18-Wheeler Parking', 'eighteenWheeler', [
+      ['__null__','— TBD'],['Yes','Yes'],['No','No']
+    ]) +
+    mkSelect('Docking Garage', 'dockingGarage', [
+      ['__null__','— TBD'],['Yes','Yes'],['No','No']
+    ]);
+
+  // Smart position
+  const rect = btnEl.getBoundingClientRect();
+  const popH = 310;
+  const spaceBelow = window.innerHeight - rect.bottom - 8;
+  const spaceAbove = rect.top - 8;
+  pop.style.position = 'fixed';
+  pop.style.left = Math.min(rect.left, window.innerWidth - 280) + 'px';
+  if (spaceBelow >= popH || spaceBelow >= spaceAbove) {
+    pop.style.top = (rect.bottom + 6) + 'px';
+    pop.style.bottom = 'auto';
+  } else {
+    pop.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+    pop.style.top = 'auto';
+  }
+  pop.classList.add('open');
+}
+
+function setOpsField(addr, field, rawVal) {
+  const val = rawVal === '__null__' ? null : rawVal === '' ? null : rawVal;
+  if (!opState[addr]) opState[addr] = {};
+  opState[addr][field] = val;
+  // Refresh ops button badge
+  const btn = document.querySelector(`[onclick*="openOpsSpecs('${addr.replace(/'/g, "\\'")}"]`);
+  if (btn) {
+    const op = opState[addr];
+    const filled = [op.aboveFirstFloor, op.stepsCount, op.elevatorType, op.elevatorDims, op.eighteenWheeler, op.dockingGarage].filter(v => v !== null && v !== undefined).length;
+    btn.classList.toggle('has-data', filled > 0);
+    btn.innerHTML = `Ops ${filled > 0 ? `<span style="color:var(--accent3);font-size:0.58rem;">${filled}/6</span>` : '›'}`;
+  }
+  sbSave(addr);
+}
+
+// ─────────────────────────────────────────────
+// FLOORPLAN UPLOAD / VIEW
+// ─────────────────────────────────────────────
+let pendingFloorplanAddr = null;
+
+function triggerFloorplanUpload(addr) {
+  pendingFloorplanAddr = addr;
+  document.getElementById('floorplan-file-input').click();
+}
+
+async function handleFloorplanUpload(input) {
+  const file = input.files[0];
+  if (!file || !pendingFloorplanAddr) return;
+  const addr = pendingFloorplanAddr;
+  input.value = '';
+
+  // Store as base64 in opState (persisted via Supabase floorplan_data column)
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const dataUrl = e.target.result;
+    if (!opState[addr]) opState[addr] = {};
+    opState[addr].floorplanUrl  = dataUrl;
+    opState[addr].floorplanName = file.name;
+    opState[addr].floorplanType = file.type;
+    await sbSaveFloorplan(addr, dataUrl, file.name, file.type);
+    renderTable();
+  };
+  reader.readAsDataURL(file);
+}
+
+async function sbSaveFloorplan(addr, dataUrl, name, type) {
+  showSync('saving');
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({
+        addr,
+        floorplan_data: dataUrl,
+        floorplan_name: name,
+        floorplan_type: type,
+        updated_at: new Date().toISOString()
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showSync('saved');
+  } catch(e) {
+    console.error('Floorplan save error:', e);
+    showSync('error');
+  }
+}
+
+function viewFloorplan(addr) {
+  const op = opState[addr] || {};
+  if (!op.floorplanUrl) return;
+  const modal   = document.getElementById('floorplan-modal');
+  const content = document.getElementById('floorplan-modal-content');
+  const title   = document.getElementById('floorplan-modal-title');
+  const dlBtn   = document.getElementById('floorplan-download-btn');
+
+  title.textContent = op.floorplanName || 'Floorplan';
+  dlBtn.href     = op.floorplanUrl;
+  dlBtn.download = op.floorplanName || 'floorplan';
+
+  if (op.floorplanType === 'application/pdf') {
+    content.innerHTML = `<iframe class="floorplan-pdf-frame" src="${op.floorplanUrl}"></iframe>`;
+  } else {
+    content.innerHTML = `<img class="floorplan-preview" src="${op.floorplanUrl}" alt="Floorplan">`;
+  }
+  modal.classList.add('open');
+}
+
+function closeFloorplan() {
+  document.getElementById('floorplan-modal').classList.remove('open');
+  document.getElementById('floorplan-modal-content').innerHTML = '';
+}
 
 // ─────────────────────────────────────────────
 // STATUS
@@ -1290,6 +1538,9 @@ function renderTable() {
                : isUnder ? 'row-undersized'
                : isTBD   ? 'row-tbd'
                : 'row-candidate';
+
+    // Restaurant prior use = red demotion highlight
+    if (opData.priorUse === 'Restaurant') rowCls += ' row-restaurant-demotion';
 
     // LVAR cell
     let lvarCell;
@@ -1381,6 +1632,28 @@ function renderTable() {
       <span class="specs-dots">${dots}</span>
     </button>`;
 
+    // Ops Specs button
+    const opsFields = [op.aboveFirstFloor, op.stepsCount, op.elevatorType, op.elevatorDims, op.eighteenWheeler, op.dockingGarage];
+    const opsFilledCount = opsFields.filter(v => v !== null && v !== undefined).length;
+    const opsBtn = `<button class="ops-btn ${opsFilledCount > 0 ? 'has-data' : ''}"
+      onclick="event.stopPropagation();openOpsSpecs('${addrEscSpecs}',this)">
+      Ops ${opsFilledCount > 0 ? `<span style="color:var(--accent3);font-size:0.58rem;">${opsFilledCount}/6</span>` : '›'}
+    </button>`;
+
+    // Floorplan button
+    const hasFloorplan = !!op.floorplanUrl;
+    const floorplanBtn = `<button class="floorplan-btn ${hasFloorplan ? 'has-file' : ''}"
+      onclick="event.stopPropagation();${hasFloorplan ? `viewFloorplan('${addrEscSpecs}')` : `triggerFloorplanUpload('${addrEscSpecs}')`}">
+      ${hasFloorplan ? '📄 Floorplan' : '⬆ Floorplan'}
+    </button>`;
+
+    // Combined cell for site specs column
+    const specsCellContent = `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
+      ${specsBtn}
+      ${opsBtn}
+      ${floorplanBtn}
+    </div>`;
+
     // Status cell
     const curStatus = op.status || '__null__';
     const statusCls = STATUS_OPTIONS.find(o => o.val === curStatus)?.cls || '';
@@ -1451,7 +1724,7 @@ function renderTable() {
       </td>
       <td>${regionBadge(p.region)}</td>
       <td>${lvarCell}</td>
-      <td>${specsBtn}</td>
+      <td>${specsCellContent}</td>
       <td>
         ${p.potentialRooms !== null
           ? `<div class="rooms-val">${p.potentialRooms}</div><div class="rooms-sub">${p.sqft.toLocaleString()} SF · 28% scan allocation</div>`
@@ -2103,10 +2376,11 @@ async function sbLoad() {
     const res  = await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}?select=*`, { headers: SB_HEADERS });
     const rows = await res.json();
     console.log('sbLoad response:', res.status, rows);
+    console.log('All rows deleted values:', rows.map(r => ({addr: r.addr.substring(0,20), deleted: r.deleted})));
     if (!Array.isArray(rows)) { console.error('sbLoad: unexpected response', rows); return; }
 
     // First pass — collect deleted addresses and purge from all lists
-    const deletedAddrs = new Set(rows.filter(r => r.deleted).map(r => r.addr));
+    const deletedAddrs = new Set(rows.filter(r => r.deleted === true || r.deleted === 'true').map(r => r.addr));
     console.log('Deleted addresses from Supabase:', [...deletedAddrs]);
     if (deletedAddrs.size > 0) {
       deletedAddrs.forEach(addr => {
@@ -2171,6 +2445,17 @@ async function sbLoad() {
       if (row.prior_use != null) opState[addr].priorUse  = row.prior_use;
       if (row.build_out != null) opState[addr].buildOut  = row.build_out;
       if (row.status    != null) opState[addr].status    = row.status;
+      if (row.above_first_floor != null) opState[addr].aboveFirstFloor = row.above_first_floor;
+      if (row.steps_count       != null) opState[addr].stepsCount      = row.steps_count;
+      if (row.elevator_type     != null) opState[addr].elevatorType    = row.elevator_type;
+      if (row.elevator_dims     != null) opState[addr].elevatorDims    = row.elevator_dims;
+      if (row.eighteen_wheeler  != null) opState[addr].eighteenWheeler = row.eighteen_wheeler;
+      if (row.docking_garage    != null) opState[addr].dockingGarage   = row.docking_garage;
+      if (row.floorplan_data    != null) {
+        opState[addr].floorplanUrl  = row.floorplan_data;
+        opState[addr].floorplanName = row.floorplan_name;
+        opState[addr].floorplanType = row.floorplan_type;
+      }
 
       // Restore editable fields
       if (prop) {
@@ -2231,6 +2516,12 @@ async function sbSave(addr) {
     nnn:        prop?.nnn       ?? null,
     type:       prop?.type      || 'candidate',
     user_added: prop?.userAdded || false,
+    above_first_floor:  op.aboveFirstFloor  || null,
+    steps_count:        op.stepsCount       || null,
+    elevator_type:      op.elevatorType     || null,
+    elevator_dims:      op.elevatorDims     || null,
+    eighteen_wheeler:   op.eighteenWheeler  || null,
+    docking_garage:     op.dockingGarage    || null,
     updated_at: new Date().toISOString(),
   };
   try {
