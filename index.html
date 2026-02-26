@@ -866,25 +866,59 @@ const proxyOverrides = JSON.parse(localStorage.getItem('lvar_proxy_overrides') |
 
 const NEW_MARKETS = ['Atlanta', 'Philadelphia']; // no existing BodySpec sites yet
 
+function findClosestProxyRegion(targetPpsf) {
+  // Find the baseline region whose median all-in $/SF is closest to targetPpsf
+  const baselineRegions = [...new Set(replacementSites.map(p => p.region))];
+  let bestRegion = 'Chicago';
+  let bestDiff = Infinity;
+  baselineRegions.forEach(r => {
+    const sites = replacementSites.filter(p => p.region === r);
+    const med = +median(sites.map(p => p.totalPpsf)).toFixed(2);
+    const diff = Math.abs(med - targetPpsf);
+    if (diff < bestDiff) { bestDiff = diff; bestRegion = r; }
+  });
+  return bestRegion;
+}
+
 function buildRegionalBaseline(r) {
   const rSites = replacementSites.filter(p => p.region === r);
-  if (rSites.length > 0) {
-    // Has own baseline sites — always use them
+  const hasOwn = rSites.length > 0;
+
+  if (proxyOverrides[r]) {
+    // Explicit override set — use it regardless of whether region has own baselines
+    const proxySites = replacementSites.filter(p => p.region === proxyOverrides[r]);
+    if (proxySites.length > 0) {
+      regionalBaseline[r] = {
+        totalPpsf: +median(proxySites.map(p => p.totalPpsf)).toFixed(2),
+        sqft:       Math.round(median(proxySites.map(p => p.sqft))),
+        source:    proxyOverrides[r] === r ? r : `${proxyOverrides[r]} (proxy)`
+      };
+      return;
+    }
+  }
+
+  if (hasOwn) {
+    // No override — use own baselines
     regionalBaseline[r] = {
       totalPpsf: +median(rSites.map(p => p.totalPpsf)).toFixed(2),
       sqft:       Math.round(median(rSites.map(p => p.sqft))),
       source:    r
     };
   } else {
-    // New market — use override if set, else default to Chicago
-    const proxy = proxyOverrides[r] || 'Chicago';
+    // New market — auto-pick closest region by $/SF if no override set
+    const candidates = allProperties.filter(p => p.region === r && p.totalPpsf !== null);
+    let proxy = 'Chicago';
+    if (candidates.length > 0) {
+      const avgPpsf = candidates.reduce((s, p) => s + p.totalPpsf, 0) / candidates.length;
+      proxy = findClosestProxyRegion(avgPpsf);
+    }
+    // Save this auto-pick so it's consistent and shows as selected in popover
+    if (!proxyOverrides[r]) proxyOverrides[r] = proxy;
     const proxySites = replacementSites.filter(p => p.region === proxy);
-    const fallback = proxySites.length > 0 ? proxySites : replacementSites.filter(p => p.region === 'Chicago');
-    const label = proxySites.length > 0 ? proxy : 'Chicago';
     regionalBaseline[r] = {
-      totalPpsf: +median(fallback.map(p => p.totalPpsf)).toFixed(2),
-      sqft:       Math.round(median(fallback.map(p => p.sqft))),
-      source:    `${label} (proxy)`
+      totalPpsf: +median(proxySites.map(p => p.totalPpsf)).toFixed(2),
+      sqft:       Math.round(median(proxySites.map(p => p.sqft))),
+      source:    `${proxy} (proxy)`
     };
   }
 }
@@ -1379,17 +1413,17 @@ function openOpsSpecs(addr, btnEl) {
     const opts = options.map(([v, l]) =>
       `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`
     ).join('');
-    return `<div class="specs-row" style="margin-bottom:7px;">
-      <span class="specs-label">${label}</span>
-      <select class="op-select-wide" onchange="setOpsField('${esc}','${field}',this.value)">${opts}</select>
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:4px;">${label}</div>
+      <select class="op-select-wide" style="width:100%;" onchange="setOpsField('${esc}','${field}',this.value)">${opts}</select>
     </div>`;
   };
 
   const mkInput = (label, field, placeholder) => {
     const cur = op[field] || '';
-    return `<div class="specs-row" style="margin-bottom:7px;">
-      <span class="specs-label">${label}</span>
-      <input class="ops-input" style="width:110px;" placeholder="${placeholder}" value="${cur}"
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:4px;">${label}</div>
+      <input class="ops-input" style="width:100%;box-sizing:border-box;" placeholder="${placeholder}" value="${cur}"
         onchange="setOpsField('${esc}','${field}',this.value)"
         oninput="setOpsField('${esc}','${field}',this.value)">
     </div>`;
@@ -1637,10 +1671,9 @@ function renderTable() {
       : `<div class="annual-rent">${fmt(p.totalAnnual)}</div><div class="annual-sub">incl. NNN</div>`;
 
     // vs Baseline cell
-    // Gear button for regions without own baselines (proxy-eligible)
-    const hasOwnBaseline = replacementSites.some(s => s.region === p.region);
-    const gearBtn = (!isRep && !hasOwnBaseline)
-      ? `<button class="proxy-gear-btn" onclick="event.stopPropagation();openProxyPopover('${p.region.replace(/'/g,"\\'")}',this)" title="Change proxy baseline">⚙</button>`
+    // Gear button — show on every candidate row so any region can change its comparison
+    const gearBtn = !isRep
+      ? `<button class="proxy-gear-btn" onclick="event.stopPropagation();openProxyPopover('${p.region.replace(/'/g,"\\'")}',this)" title="Change comparison baseline">⚙</button>`
       : '';
 
     let vsBaselineCell;
@@ -2179,9 +2212,6 @@ function injectRegionFilterButton(region) {
 let activeProxyRegion = null;
 
 function openProxyPopover(region, btnEl) {
-  const hasOwnBaseline = replacementSites.some(p => p.region === region);
-  if (hasOwnBaseline) return;
-
   const pop  = document.getElementById('proxy-popover');
   const body = document.getElementById('proxy-options-body');
 
@@ -2193,15 +2223,19 @@ function openProxyPopover(region, btnEl) {
   activeProxyRegion = region;
   document.getElementById('proxy-region-label').textContent = region;
 
+  const hasOwn = replacementSites.some(p => p.region === region);
+  // All regions with baseline properties, plus "self" if region has own baselines
   const baselineRegions = [...new Set(replacementSites.map(p => p.region))];
-  const current = proxyOverrides[region] || 'Chicago';
+  const current = proxyOverrides[region] || (hasOwn ? region : null);
 
-  body.innerHTML = baselineRegions.map(r => `
-    <div class="proxy-option ${r === current ? 'active' : ''}" onclick="setProxy('${region}','${r}')">
-      <span>${r}</span>
+  body.innerHTML = baselineRegions.map(r => {
+    const isSelf = r === region;
+    const label  = isSelf ? `${r} <span style="font-size:0.58rem;opacity:0.6;">(self)</span>` : r;
+    return `<div class="proxy-option ${r === current ? 'active' : ''}" onclick="setProxy('${region}','${r}')">
+      <span>${label}</span>
       <span class="proxy-tick">✓</span>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   const rect = btnEl.getBoundingClientRect();
   pop.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
@@ -2432,19 +2466,29 @@ function recomputeAllLvar() {
 }
 
 function computeBaseline(p) {
-  const regionBaselines = baselineSites.filter(b => b.region === p.region && b.totalPpsf !== null);
-  let src   = p.region;
-  let bases = regionBaselines;
+  const override = proxyOverrides[p.region];
+  let src, bases;
+
+  if (override) {
+    // Explicit override — compare to that region's baselines
+    bases = baselineSites.filter(b => b.region === override && b.totalPpsf !== null);
+    src   = override === p.region ? p.region : override;
+  } else {
+    bases = baselineSites.filter(b => b.region === p.region && b.totalPpsf !== null);
+    src   = p.region;
+  }
+
+  // Fallback: if no usable bases found, auto-pick closest
   if (bases.length === 0) {
-    // Use proxy override if set, else default to Chicago
-    const proxy = proxyOverrides[p.region] || 'Chicago';
+    const candidates = allProperties.filter(q => q.region === p.region && q.totalPpsf !== null);
+    const avgPpsf = candidates.length > 0
+      ? candidates.reduce((s, q) => s + q.totalPpsf, 0) / candidates.length
+      : null;
+    const proxy = avgPpsf ? findClosestProxyRegion(avgPpsf) : 'Chicago';
     bases = baselineSites.filter(b => b.region === proxy && b.totalPpsf !== null);
     src   = proxy;
-    if (bases.length === 0) {
-      bases = baselineSites.filter(b => b.region === 'Chicago' && b.totalPpsf !== null);
-      src   = 'Chicago';
-    }
   }
+
   if (bases.length === 0) return { lvar: null, baselinePpsf: null, baselineSqft: null, baselineSource: src, vsPsf: null, vsSqft: null };
 
   const sorted_psf  = [...bases].map(b => b.totalPpsf).sort((a,b)=>a-b);
