@@ -2248,20 +2248,32 @@ function getSelectedRegion() {
 }
 
 function injectRegionFilterButton(region) {
+  // Add to filter bar
   const btnGroup = document.querySelector('.btn-group[data-region-group]');
-  if (!btnGroup) return;
-  const exists = [...btnGroup.querySelectorAll('.btn')].some(b =>
-    b.dataset.region === region
-  );
-  if (exists) return;
-  const btn = document.createElement('button');
-  btn.className = 'btn';
-  btn.textContent = region;
-  btn.dataset.region = region;
-  btn.onclick = function() { filterRegion(region, this); };
-  btn.oncontextmenu = function(e) { e.preventDefault(); openProxyPopover(region, this); };
-  btn.title = 'Right-click to change proxy baseline';
-  btnGroup.appendChild(btn);
+  if (btnGroup) {
+    const exists = [...btnGroup.querySelectorAll('.btn')].some(b => b.dataset.region === region);
+    if (!exists) {
+      const btn = document.createElement('button');
+      btn.className = 'btn proxy-eligible';
+      btn.textContent = region;
+      btn.dataset.region = region;
+      btn.onclick = function() { filterRegion(region, this); };
+      btn.oncontextmenu = function(e) { e.preventDefault(); openProxyPopover(region, this); };
+      btnGroup.appendChild(btn);
+    }
+  }
+
+  // Also add to Add Property region dropdown
+  const sel = document.getElementById('new-region');
+  if (sel) {
+    const alreadyInDropdown = [...sel.options].some(o => o.value === region);
+    if (!alreadyInDropdown) {
+      const opt = document.createElement('option');
+      opt.value = region;
+      opt.textContent = region;
+      sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+    }
+  }
 }
 
 // ─────────────────────────────────────────────
