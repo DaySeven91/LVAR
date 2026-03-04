@@ -930,6 +930,8 @@ function buildRegionalBaseline(r) {
 
 regions.forEach(r => buildRegionalBaseline(r));
 
+// NOTE: buildRegionalBaseline is also called after sbLoad completes to incorporate user-added baselines
+
 // ─── COMPUTE LVAR ─────────────────────────────
 // LVAR = how much better or worse vs. regional baseline
 // Components:
@@ -2512,9 +2514,17 @@ async function deleteProperty(addr) {
 
 function recomputeAllLvar() {
   workingCandidates.forEach(p => {
-    if (p.rentTBD) return;
     const b = computeBaseline(p);
-    Object.assign(p, b);
+    // Always update baseline reference fields so vs. Baseline cell shows correctly
+    p.baselinePpsf   = b.baselinePpsf;
+    p.baselineSqft   = b.baselineSqft;
+    p.baselineSource = b.baselineSource;
+    if (!p.rentTBD) {
+      // Only update LVAR and delta fields if rent is known
+      p.lvar   = b.lvar;
+      p.vsPsf  = b.vsPsf;
+      p.vsSqft = b.vsSqft;
+    }
   });
 }
 
@@ -2783,6 +2793,29 @@ async function sbSave(addr) {
 // ─────────────────────────────────────────────
 async function initDashboard() {
   await sbLoad();
+  // Rebuild all baselines now that user-added properties are loaded from Supabase
+  // This ensures promoted user-added baselines (e.g. NYC) are used correctly
+  const allRegions = [...new Set(allProperties.map(p => p.region))];
+  allRegions.forEach(r => {
+    // Only rebuild if no proxy override locked — let user overrides stand
+    // but clear auto-picks so user-promoted baselines take precedence
+    const hasOwnNow = baselineSites.some(p => p.region === r);
+    if (hasOwnNow && proxyOverrides[r] && proxyOverrides[r] !== r) {
+      // Was auto-picked to a proxy but now has real baselines — clear auto-pick
+      // unless user explicitly set it (we can't distinguish, so only clear if it matches what auto-pick would have chosen)
+      const candidates = allProperties.filter(p => p.region === r && p.totalPpsf !== null && p.type !== 'replacement');
+      if (candidates.length > 0) {
+        const avgPpsf = candidates.reduce((s, p) => s + p.totalPpsf, 0) / candidates.length;
+        const autoPick = findClosestProxyRegion(avgPpsf);
+        if (proxyOverrides[r] === autoPick) {
+          delete proxyOverrides[r]; // was auto-picked, not user-chosen — clear it
+          localStorage.setItem('lvar_proxy_overrides', JSON.stringify(proxyOverrides));
+        }
+      }
+    }
+    buildRegionalBaseline(r);
+  });
+  recomputeAllLvar();
   renderStats();
   renderTopCards();
   renderTable();
