@@ -356,6 +356,12 @@ const SB_TABLE      = 'property_data';
   .floorplan-modal-close:hover { border-color: var(--red); color: var(--red); }
   .floorplan-download { background: var(--accent3); color: #fff; border: none; font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 4px 12px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
   .floorplan-download:hover { background: var(--accent2); }
+  .floorplan-delete-btn { background: none; border: 1px solid rgba(217,79,79,0.4); color: var(--red); font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 4px 12px; border-radius: 5px; cursor: pointer; }
+  .floorplan-delete-btn:hover { background: rgba(217,79,79,0.1); }
+
+  /* NOTES TEXTAREA */
+  .notes-textarea { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.7rem; padding: 7px 9px; border-radius: 6px; outline: none; resize: vertical; min-height: 70px; line-height: 1.5; transition: border-color 0.15s; }
+  .notes-textarea:focus { border-color: var(--accent3); }
   .floorplan-preview { max-width: 100%; max-height: calc(90vh - 120px); border-radius: 6px; object-fit: contain; }
   .floorplan-pdf-frame { width: 70vw; height: calc(90vh - 120px); border: none; border-radius: 6px; }
 
@@ -528,6 +534,7 @@ const SB_TABLE      = 'property_data';
     <div class="floorplan-modal-actions">
       <span class="floorplan-modal-title" id="floorplan-modal-title">Floorplan</span>
       <a class="floorplan-download" id="floorplan-download-btn" download>⬇ Download</a>
+      <button class="floorplan-delete-btn" id="floorplan-delete-btn" onclick="deleteFloorplan()">🗑 Delete</button>
       <button class="floorplan-modal-close" onclick="closeFloorplan()">✕ Close</button>
     </div>
     <div id="floorplan-modal-content"></div>
@@ -878,16 +885,17 @@ function findClosestProxyRegion(targetPpsf) {
 }
 
 function buildRegionalBaseline(r) {
-  const rSites = replacementSites.filter(p => p.region === r);
-  const hasOwn = rSites.length > 0;
+  // Include both hardcoded and user-added baseline sites
+  const allBaseSites = baselineSites.filter(p => p.region === r && p.totalPpsf !== null);
+  const hasOwn = allBaseSites.length > 0;
 
   if (proxyOverrides[r]) {
-    // Explicit override set — use it regardless of whether region has own baselines
-    const proxySites = replacementSites.filter(p => p.region === proxyOverrides[r]);
+    // Explicit override — use that region's baselines (hardcoded + user-added)
+    const proxySites = baselineSites.filter(p => p.region === proxyOverrides[r] && p.totalPpsf !== null);
     if (proxySites.length > 0) {
       regionalBaseline[r] = {
         totalPpsf: +median(proxySites.map(p => p.totalPpsf)).toFixed(2),
-        sqft:       Math.round(median(proxySites.map(p => p.sqft))),
+        sqft:       Math.round(median(proxySites.map(p => p.sqft).filter(Boolean))),
         source:    proxyOverrides[r] === r ? r : `${proxyOverrides[r]} (proxy)`
       };
       return;
@@ -895,27 +903,27 @@ function buildRegionalBaseline(r) {
   }
 
   if (hasOwn) {
-    // No override — use own baselines
     regionalBaseline[r] = {
-      totalPpsf: +median(rSites.map(p => p.totalPpsf)).toFixed(2),
-      sqft:       Math.round(median(rSites.map(p => p.sqft))),
+      totalPpsf: +median(allBaseSites.map(p => p.totalPpsf)).toFixed(2),
+      sqft:       Math.round(median(allBaseSites.map(p => p.sqft).filter(Boolean))),
       source:    r
     };
   } else {
-    // New market — auto-pick closest region by $/SF if no override set
+    // New market — auto-pick closest region by $/SF
     const candidates = allProperties.filter(p => p.region === r && p.totalPpsf !== null);
     let proxy = 'Chicago';
     if (candidates.length > 0) {
       const avgPpsf = candidates.reduce((s, p) => s + p.totalPpsf, 0) / candidates.length;
       proxy = findClosestProxyRegion(avgPpsf);
     }
-    // Save this auto-pick so it's consistent and shows as selected in popover
     if (!proxyOverrides[r]) proxyOverrides[r] = proxy;
-    const proxySites = replacementSites.filter(p => p.region === proxy);
+    const proxySites = baselineSites.filter(p => p.region === proxy && p.totalPpsf !== null);
+    const fallback   = proxySites.length > 0 ? proxySites : baselineSites.filter(p => p.region === 'Chicago' && p.totalPpsf !== null);
+    const label      = proxySites.length > 0 ? proxy : 'Chicago';
     regionalBaseline[r] = {
-      totalPpsf: +median(proxySites.map(p => p.totalPpsf)).toFixed(2),
-      sqft:       Math.round(median(proxySites.map(p => p.sqft))),
-      source:    `${proxy} (proxy)`
+      totalPpsf: fallback.length > 0 ? +median(fallback.map(p => p.totalPpsf)).toFixed(2) : 60,
+      sqft:       fallback.length > 0 ? Math.round(median(fallback.map(p => p.sqft).filter(Boolean))) : 1400,
+      source:    `${label} (proxy)`
     };
   }
 }
@@ -1333,7 +1341,14 @@ function openSpecs(addr, btnEl) {
       ['__null__','— TBD'],['Built out w/ Rooms','Built out w/ Rooms'],
       ['Built out w/o Rooms','Built out w/o Rooms'],['Shell','Shell'],
       ['Needs Min Work','Needs Min Work'],['Needs A LOT','Needs A LOT']
-    ]);
+    ]) +
+    `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+      <div style="font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:5px;">Notes</div>
+      <textarea class="notes-textarea" placeholder="Add site notes..."
+        onchange="setOpFromSpecs('${esc}','specsNotes',this.value)"
+        oninput="setOpFromSpecs('${esc}','specsNotes',this.value)"
+      >${op.specsNotes || ''}</textarea>
+    </div>`;
 
   // Smart position — flip above if not enough room below
   const rect = btnEl.getBoundingClientRect();
@@ -1440,7 +1455,14 @@ function openOpsSpecs(addr, btnEl) {
     ]) +
     mkSelect('Docking Garage', 'dockingGarage', [
       ['__null__','— TBD'],['Yes','Yes'],['No','No']
-    ]);
+    ]) +
+    `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+      <div style="font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:5px;">Notes</div>
+      <textarea class="notes-textarea" placeholder="Add ops notes..."
+        onchange="setOpsField('${esc}','opsNotes',this.value)"
+        oninput="setOpsField('${esc}','opsNotes',this.value)"
+      >${op.opsNotes || ''}</textarea>
+    </div>`;
 
   // Smart position
   const rect = btnEl.getBoundingClientRect();
@@ -1478,6 +1500,7 @@ function setOpsField(addr, field, rawVal) {
 // FLOORPLAN UPLOAD / VIEW
 // ─────────────────────────────────────────────
 let pendingFloorplanAddr = null;
+let activeFloorplanAddr = null;
 
 function triggerFloorplanUpload(addr) {
   pendingFloorplanAddr = addr;
@@ -1529,6 +1552,7 @@ async function sbSaveFloorplan(addr, dataUrl, name, type) {
 function viewFloorplan(addr) {
   const op = opState[addr] || {};
   if (!op.floorplanUrl) return;
+  activeFloorplanAddr = addr;
   const modal   = document.getElementById('floorplan-modal');
   const content = document.getElementById('floorplan-modal-content');
   const title   = document.getElementById('floorplan-modal-title');
@@ -1544,6 +1568,43 @@ function viewFloorplan(addr) {
     content.innerHTML = `<img class="floorplan-preview" src="${op.floorplanUrl}" alt="Floorplan">`;
   }
   modal.classList.add('open');
+}
+
+async function deleteFloorplan() {
+  const addr = activeFloorplanAddr;
+  if (!addr) return;
+  if (!confirm('Delete this floorplan?')) return;
+
+  // Clear from memory
+  if (opState[addr]) {
+    delete opState[addr].floorplanUrl;
+    delete opState[addr].floorplanName;
+    delete opState[addr].floorplanType;
+  }
+
+  // Clear from Supabase
+  showSync('saving');
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({
+        addr,
+        floorplan_data: null,
+        floorplan_name: null,
+        floorplan_type: null,
+        updated_at: new Date().toISOString()
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showSync('saved');
+  } catch(e) {
+    console.error('Floorplan delete error:', e);
+    showSync('error');
+  }
+
+  closeFloorplan();
+  renderTable();
 }
 
 function closeFloorplan() {
@@ -2219,11 +2280,13 @@ function openProxyPopover(region, btnEl) {
   document.getElementById('proxy-region-label').textContent = region;
 
   const hasOwn = replacementSites.some(p => p.region === region);
-  // All regions with baseline properties, plus "self" if region has own baselines
-  const baselineRegions = [...new Set(replacementSites.map(p => p.region))];
+  // Regions with baselines = hardcoded replacementSites OR user-added properties with type=replacement
+  const hardcodedBaselineRegions = [...new Set(replacementSites.map(p => p.region))];
+  const userBaselineRegions = [...new Set(baselineSites.filter(p => p.userAdded).map(p => p.region))];
+  const allBaselineRegions = [...new Set([...hardcodedBaselineRegions, ...userBaselineRegions])];
   const current = proxyOverrides[region] || (hasOwn ? region : null);
 
-  body.innerHTML = baselineRegions.map(r => {
+  body.innerHTML = allBaselineRegions.map(r => {
     const isSelf = r === region;
     const label  = isSelf ? `${r} <span style="font-size:0.58rem;opacity:0.6;">(self)</span>` : r;
     return `<div class="proxy-option ${r === current ? 'active' : ''}" onclick="setProxy('${region}','${r}')">
@@ -2375,6 +2438,8 @@ function togglePropertyType(addr) {
     workingCandidates = workingCandidates.filter(p => p.addr !== addr);
     baselineSites.unshift(prop);
   }
+  // Rebuild baseline for this region — user-added baseline now counts
+  buildRegionalBaseline(prop.region);
   recomputeAllLvar();
   sbSave(addr);
   renderStats();
@@ -2569,7 +2634,7 @@ async function sbLoad() {
       let prop = allProperties.find(p => p.addr === addr);
       if (!prop && row.user_added) {
         prop = {
-          name: addr.split(',')[0].trim(),
+          name: row.prop_name || addr.split(',')[0].trim(),
           addr,
           region:   row.region || 'Unknown',
           type:     row.type   || 'candidate',
@@ -2614,6 +2679,8 @@ async function sbLoad() {
       if (row.prior_use != null) opState[addr].priorUse  = row.prior_use;
       if (row.build_out != null) opState[addr].buildOut  = row.build_out;
       if (row.status    != null) opState[addr].status    = row.status;
+      if (row.specs_notes != null) opState[addr].specsNotes = row.specs_notes;
+      if (row.ops_notes   != null) opState[addr].opsNotes   = row.ops_notes;
       if (row.above_first_floor != null) opState[addr].aboveFirstFloor = row.above_first_floor;
       if (row.steps_count       != null) opState[addr].stepsCount      = row.steps_count;
       if (row.elevator_type     != null) opState[addr].elevatorType    = row.elevator_type;
@@ -2625,6 +2692,9 @@ async function sbLoad() {
         opState[addr].floorplanName = row.floorplan_name;
         opState[addr].floorplanType = row.floorplan_type;
       }
+
+      // Restore prop name if saved
+      if (prop && row.prop_name) prop.name = row.prop_name;
 
       // Restore editable fields
       if (prop) {
@@ -2671,13 +2741,16 @@ async function sbSave(addr) {
   const prop = allProperties.find(p => p.addr === addr);
   const row  = {
     addr,
-    region:     prop?.region     || null,
-    bathroom:   op.bathroom  || null,
-    parking:    op.parking   || null,
-    access:     op.access    || null,
-    prior_use:  op.priorUse  || null,
-    build_out:  op.buildOut  || null,
-    status:     op.status    || null,
+    prop_name:  prop?.name        || null,
+    region:     prop?.region      || null,
+    bathroom:   op.bathroom   || null,
+    parking:    op.parking    || null,
+    access:     op.access     || null,
+    prior_use:  op.priorUse   || null,
+    build_out:  op.buildOut   || null,
+    status:     op.status     || null,
+    specs_notes: op.specsNotes || null,
+    ops_notes:   op.opsNotes   || null,
     iso_pop:    prop?.isoPop    ?? null,
     comp_count: prop?.compCount ?? null,
     sqft:       prop?.sqft      ?? null,
