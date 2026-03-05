@@ -365,6 +365,11 @@ const SB_TABLE      = 'property_data';
   .floorplan-preview { max-width: 100%; max-height: calc(90vh - 120px); border-radius: 6px; object-fit: contain; }
   .floorplan-pdf-frame { width: 70vw; height: calc(90vh - 120px); border: none; border-radius: 6px; }
 
+  .star-btn { background: none; border: none; cursor: pointer; font-size: 1rem; line-height: 1; padding: 2px 3px; color: var(--border); transition: color 0.15s, transform 0.1s; flex-shrink: 0; }
+  .star-btn:hover { color: #f5a623; transform: scale(1.2); }
+  .star-btn.starred { color: #f5a623; }
+  .btn#btn-starred.active { background: rgba(245,166,35,0.12); border-color: rgba(245,166,35,0.6); color: #c47f00; }
+
   .proxy-gear-btn { background: none; border: 1px solid var(--border); color: var(--text-dimmer); font-size: 0.72rem; cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: all 0.15s; line-height: 1; flex-shrink: 0; margin-top: 1px; }
   .proxy-gear-btn:hover { color: var(--accent3); border-color: var(--accent3); background: rgba(58,125,94,0.07); }
 
@@ -599,6 +604,7 @@ const SB_TABLE      = 'property_data';
       <button class="btn active" onclick="filterView('all', this)">All</button>
       <button class="btn" onclick="filterView('candidate', this)">Candidates</button>
       <button class="btn" onclick="filterView('replacement', this)">Replacement Lvl</button>
+      <button class="btn" id="btn-starred" onclick="toggleStarredFilter(this)">★ Starred</button>
     </div>
   </div>
   <div class="control-group">
@@ -970,6 +976,7 @@ allProperties.forEach(p => {
 // ─────────────────────────────────────────────
 let activeView   = 'all';
 let activeRegion = 'all';
+let activeStarred = false; // true = show only starred properties
 let searchQuery  = '';
 let sortKey      = 'lvar';
 let sortDir      = -1;
@@ -998,8 +1005,12 @@ function renderBar(val, cls, max) {
 
 function getFiltered() {
   let data = [...allProperties];
-  if (activeView === 'candidate')    data = data.filter(p => p.type === 'candidate');
-  if (activeView === 'replacement')  data = data.filter(p => p.type === 'replacement');
+  if (activeStarred) {
+    data = data.filter(p => opState[p.addr] && opState[p.addr].starred);
+  } else {
+    if (activeView === 'candidate')    data = data.filter(p => p.type === 'candidate');
+    if (activeView === 'replacement')  data = data.filter(p => p.type === 'replacement');
+  }
   if (activeRegion !== 'all')        data = data.filter(p => p.region === activeRegion);
   if (searchQuery)                   data = data.filter(p =>
     p.name.toLowerCase().includes(searchQuery) ||
@@ -1868,13 +1879,19 @@ function renderTable() {
       ? `<span class="comp-pill ${compCls}" onclick="openMapPanel('${addrEsc}','${nameEsc}')">${compVal} nearby</span>`
       : `<button class="iso-btn" onclick="openMapPanel('${addrEsc}','${nameEsc}')">⊕ Load</button>`;
 
+    const isStarred = !!(opState[p.addr] && opState[p.addr].starred);
+    const addrEscStar = p.addr.replace(/'/g, "\\'");
+
     return `
     <tr class="${rowCls}">
       <td class="rank-cell">${i + 1}</td>
       <td class="wrap-cell">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px;">
           <div>
-            <div class="prop-name" style="cursor:pointer;transition:color 0.15s" onclick="openMapPanel('${addrEsc}','${nameEsc}')" title="Open map view">${p.name} <span style="font-size:0.7rem;color:var(--accent3)">↗</span></div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <button class="star-btn ${isStarred ? 'starred' : ''}" onclick="event.stopPropagation();toggleStar('${addrEscStar}')" title="${isStarred ? 'Remove star' : 'Star this property'}">★</button>
+              <div class="prop-name" style="cursor:pointer;transition:color 0.15s" onclick="openMapPanel('${addrEsc}','${nameEsc}')" title="Open map view">${p.name} <span style="font-size:0.7rem;color:var(--accent3)">↗</span></div>
+            </div>
             <div class="prop-addr">${p.addr}</div>
             <div style="margin-top:3px;">${typeTags}</div>
             ${notesRow}
@@ -1908,8 +1925,33 @@ function renderTable() {
 // ─────────────────────────────────────────────
 function filterView(val, btn) {
   activeView = val;
+  activeStarred = false;
+  document.getElementById('btn-starred').classList.remove('active');
   btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  renderTable();
+}
+
+function toggleStarredFilter(btn) {
+  activeStarred = !activeStarred;
+  if (activeStarred) {
+    // Deactivate view buttons, activate starred
+    btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  } else {
+    btn.classList.remove('active');
+    // Reactivate 'All'
+    const allBtn = btn.parentElement.querySelector('.btn');
+    allBtn.classList.add('active');
+    activeView = 'all';
+  }
+  renderTable();
+}
+
+function toggleStar(addr) {
+  if (!opState[addr]) opState[addr] = {};
+  opState[addr].starred = !opState[addr].starred;
+  sbSave(addr);
   renderTable();
 }
 
@@ -2717,6 +2759,7 @@ async function sbLoad() {
       if (row.status    != null) opState[addr].status    = row.status;
       if (row.specs_notes != null) opState[addr].specsNotes = row.specs_notes;
       if (row.ops_notes   != null) opState[addr].opsNotes   = row.ops_notes;
+      if (row.starred) opState[addr].starred = true;
       if (row.above_first_floor != null) opState[addr].aboveFirstFloor = row.above_first_floor;
       if (row.steps_count       != null) opState[addr].stepsCount      = row.steps_count;
       if (row.elevator_type     != null) opState[addr].elevatorType    = row.elevator_type;
@@ -2787,6 +2830,7 @@ async function sbSave(addr) {
     status:     op.status     || null,
     specs_notes: op.specsNotes || null,
     ops_notes:   op.opsNotes   || null,
+    starred:     op.starred    || false,
     iso_pop:    prop?.isoPop    ?? null,
     comp_count: prop?.compCount ?? null,
     sqft:       prop?.sqft      ?? null,
