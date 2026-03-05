@@ -876,11 +876,13 @@ const NEW_MARKETS = ['Atlanta', 'Philadelphia']; // no existing BodySpec sites y
 
 function findClosestProxyRegion(targetPpsf) {
   // Find the baseline region whose median all-in $/SF is closest to targetPpsf
-  const baselineRegions = [...new Set(replacementSites.map(p => p.region))];
+  // Uses baselineSites — includes hardcoded + user-added + promoted candidates
+  const baselineRegions = [...new Set(baselineSites.filter(p => p.totalPpsf !== null).map(p => p.region))];
   let bestRegion = 'Chicago';
   let bestDiff = Infinity;
   baselineRegions.forEach(r => {
-    const sites = replacementSites.filter(p => p.region === r);
+    const sites = baselineSites.filter(p => p.region === r && p.totalPpsf !== null);
+    if (sites.length === 0) return;
     const med = +median(sites.map(p => p.totalPpsf)).toFixed(2);
     const diff = Math.abs(med - targetPpsf);
     if (diff < bestDiff) { bestDiff = diff; bestRegion = r; }
@@ -2301,11 +2303,10 @@ function openProxyPopover(region, btnEl) {
   activeProxyRegion = region;
   document.getElementById('proxy-region-label').textContent = region;
 
-  const hasOwn = replacementSites.some(p => p.region === region);
-  // Regions with baselines = hardcoded replacementSites OR user-added properties with type=replacement
-  const hardcodedBaselineRegions = [...new Set(replacementSites.map(p => p.region))];
-  const userBaselineRegions = [...new Set(baselineSites.filter(p => p.userAdded).map(p => p.region))];
-  const allBaselineRegions = [...new Set([...hardcodedBaselineRegions, ...userBaselineRegions])];
+  // Derive selectable regions from baselineSites — includes hardcoded, user-added,
+  // AND hardcoded-candidate-promoted-to-baseline. This is the single source of truth.
+  const allBaselineRegions = [...new Set(baselineSites.filter(p => p.totalPpsf !== null).map(p => p.region))];
+  const hasOwn = allBaselineRegions.includes(region);
   const current = proxyOverrides[region] || (hasOwn ? region : null);
 
   body.innerHTML = allBaselineRegions.map(r => {
