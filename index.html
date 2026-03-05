@@ -415,7 +415,7 @@ const SB_TABLE      = 'property_data';
   .status-select.st-loipending      { background-color: rgba(99,102,241,0.10);  border-color: rgba(99,102,241,0.4);   color: #4f46e5; }
   .status-select.st-loisigned       { background-color: rgba(99,102,241,0.18);  border-color: rgba(99,102,241,0.6);   color: #4338ca; font-weight: 600; }
   .status-select.st-leasenegotiation{ background-color: rgba(139,92,246,0.12);  border-color: rgba(139,92,246,0.5);   color: #7c3aed; font-weight: 600; }
-  .status-select.st-leased          { background-color: rgba(58,171,107,0.15);  border-color: rgba(58,171,107,0.6);   color: var(--green); font-weight: 600; }
+  .status-select.st-leased          { background-color: rgba(245,166,35,0.12);  border-color: rgba(245,166,35,0.6);   color: #c47f00; font-weight: 600; }
   .status-select.st-closed          { background-color: rgba(217,79,79,0.08);   border-color: rgba(217,79,79,0.35);   color: var(--red); }
   .promote-btn { display: none; padding: 4px 10px; background: var(--accent2); color: #fff; border: none; border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 0.6rem; cursor: pointer; letter-spacing: 0.04em; transition: background 0.15s; white-space: nowrap; }
   .promote-btn:hover { background: var(--accent3); }
@@ -585,7 +585,7 @@ const SB_TABLE      = 'property_data';
   <div class="hero-eyebrow">// BodySpec National Expansion · Site Selection Intelligence</div>
   <h1>Every Market. Every Site.<br>Ranked by <em>Lease Value Above Replacement</em></h1>
   <div class="divider-line"></div>
-  <p class="hero-sub">LVAR is a composite score measuring how well a candidate site performs versus the <strong>regional replacement level</strong> — the median benchmark derived from BodySpec's 12 existing locations across 6 regions. A positive LVAR means the site beats the baseline on cost efficiency and space. Replacement-level sites are shown for reference as the standard each new location is measured against.</p>
+  <p class="hero-sub">LVAR is a composite score measuring how well a candidate site performs versus the <strong>regional replacement level</strong> — the median benchmark derived from BodySpec's existing storefronts across 8 regions as well as select sites in potential, new markets. A positive LVAR means the site beats the baseline on cost efficiency and space. Replacement-level sites are shown for reference as the standard each new location is measured against.</p>
 </section>
 
 <div class="stat-strip" id="stat-strip"></div>
@@ -604,6 +604,7 @@ const SB_TABLE      = 'property_data';
       <button class="btn active" onclick="filterView('all', this)">All</button>
       <button class="btn" onclick="filterView('candidate', this)">Candidates</button>
       <button class="btn" onclick="filterView('replacement', this)">Replacement Lvl</button>
+      <button class="btn" onclick="filterView('bnm', this)">BNM</button>
       <button class="btn" id="btn-starred" onclick="toggleStarredFilter(this)">★ Starred</button>
     </div>
   </div>
@@ -753,7 +754,7 @@ const SB_TABLE      = 'property_data';
   </div>
 </div>
 
-<footer>LeaseIQ Analytics · BodySpec · Replacement level: 12 existing locations across 6 regions · Candidate data: broker surveys &amp; market estimates Feb 2026 · All figures estimated · Not a substitute for broker diligence</footer>
+<footer>LeaseIQ Analytics · BodySpec · Replacement level: existing storefronts across 8 regions · Candidate data: broker surveys &amp; market estimates Feb 2026 · All figures estimated · Not a substitute for broker diligence</footer>
 
 <script>
 // ─────────────────────────────────────────────
@@ -1010,6 +1011,13 @@ function getFiltered() {
   } else {
     if (activeView === 'candidate')    data = data.filter(p => p.type === 'candidate');
     if (activeView === 'replacement')  data = data.filter(p => p.type === 'replacement');
+    if (activeView === 'bnm') {
+      const bnmStatuses = new Set(['Leased', 'Closed/Vacated']);
+      data = data.filter(p => {
+        const status = opState[p.addr]?.status;
+        return bnmStatuses.has(status);
+      });
+    }
   }
   if (activeRegion !== 'all')        data = data.filter(p => p.region === activeRegion);
   if (searchQuery)                   data = data.filter(p =>
