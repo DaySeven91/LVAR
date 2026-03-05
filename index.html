@@ -2459,8 +2459,13 @@ function togglePropertyType(addr) {
   } else {
     workingCandidates = workingCandidates.filter(p => p.addr !== addr);
     baselineSites.unshift(prop);
+    // If this region now has real baselines for the first time, clear proxy override
+    const regionBaselineCount = baselineSites.filter(p => p.region === prop.region && p.totalPpsf !== null).length;
+    if (regionBaselineCount >= 1 && proxyOverrides[prop.region] && proxyOverrides[prop.region] !== prop.region) {
+      delete proxyOverrides[prop.region];
+      localStorage.setItem('lvar_proxy_overrides', JSON.stringify(proxyOverrides));
+    }
   }
-  // Rebuild baseline for this region — user-added baseline now counts
   buildRegionalBaseline(prop.region);
   recomputeAllLvar();
   sbSave(addr);
@@ -2813,28 +2818,22 @@ async function sbSave(addr) {
 // ─────────────────────────────────────────────
 async function initDashboard() {
   await sbLoad();
-  // Rebuild all baselines now that user-added properties are loaded from Supabase
-  // This ensures promoted user-added baselines (e.g. NYC) are used correctly
+
+  // Rebuild all baselines now that Supabase data is loaded.
+  // For any region that now has real baseline sites, clear any proxy override
+  // that was pointing elsewhere — the region should compare to itself by default.
+  // (User can always re-override via the gear icon after load.)
   const allRegions = [...new Set(allProperties.map(p => p.region))];
   allRegions.forEach(r => {
-    // Only rebuild if no proxy override locked — let user overrides stand
-    // but clear auto-picks so user-promoted baselines take precedence
-    const hasOwnNow = baselineSites.some(p => p.region === r);
+    const hasOwnNow = baselineSites.some(p => p.region === r && p.totalPpsf !== null);
     if (hasOwnNow && proxyOverrides[r] && proxyOverrides[r] !== r) {
-      // Was auto-picked to a proxy but now has real baselines — clear auto-pick
-      // unless user explicitly set it (we can't distinguish, so only clear if it matches what auto-pick would have chosen)
-      const candidates = allProperties.filter(p => p.region === r && p.totalPpsf !== null && p.type !== 'replacement');
-      if (candidates.length > 0) {
-        const avgPpsf = candidates.reduce((s, p) => s + p.totalPpsf, 0) / candidates.length;
-        const autoPick = findClosestProxyRegion(avgPpsf);
-        if (proxyOverrides[r] === autoPick) {
-          delete proxyOverrides[r]; // was auto-picked, not user-chosen — clear it
-          localStorage.setItem('lvar_proxy_overrides', JSON.stringify(proxyOverrides));
-        }
-      }
+      // Region now has its own baselines — remove the proxy override so it self-compares
+      delete proxyOverrides[r];
+      localStorage.setItem('lvar_proxy_overrides', JSON.stringify(proxyOverrides));
     }
     buildRegionalBaseline(r);
   });
+
   recomputeAllLvar();
   renderStats();
   renderTopCards();
