@@ -845,6 +845,10 @@ const candidateSites = [
 replacementSites.forEach(p => { p.type = 'replacement'; });
 candidateSites.forEach(p => { p.type = 'candidate'; });
 
+// ─── SIZE THRESHOLDS ──────────────────────────
+const SQFT_OVERSIZED  = 3000; // ≥ 3,000 SF flagged as oversized
+const SQFT_UNDERSIZED = 1100; // ≤ 1,100 SF flagged as undersized
+
 const allProperties = [...replacementSites, ...candidateSites];
 
 // Working lists — mutable, used by Add Property feature
@@ -859,10 +863,14 @@ allProperties.forEach(p => {
   p.baseAnnual  = p.rentTBD ? null : Math.round(p.sqft * p.ppsf);
   p.nnnAnnual   = p.rentTBD ? null : Math.round(p.sqft * (p.nnn || 0));
   p.totalAnnual = p.rentTBD ? null : p.baseAnnual + p.nnnAnnual;
-  // Potential rooms: usable SF (80% of total) ÷ 121 SF (11×11), floored
-  const SCAN_PCT = 0.28; // scan-room-only allocation (11x11 rooms = 3-4 rooms per 1,500 SF)
-  const ROOM_SF  = 11 * 11; // 121 SF
+  const SCAN_PCT = 0.28;
+  const ROOM_SF  = 11 * 11;
   p.potentialRooms = p.sqftTBD ? null : Math.floor(p.sqft * SCAN_PCT / ROOM_SF);
+  // Dynamic size flags — override any hardcoded values
+  if (!p.sqftTBD && p.sqft !== null) {
+    p.oversized  = p.sqft >= SQFT_OVERSIZED;
+    p.undersized = p.sqft <= SQFT_UNDERSIZED;
+  }
 });
 
 // ─── COMPUTE REGIONAL BASELINES ───────────────
@@ -2540,6 +2548,10 @@ function updatePropField(addr, field, rawVal) {
   prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
   const SCAN_PCT = 0.28, ROOM_SF = 121;
   prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * SCAN_PCT / ROOM_SF);
+  if (!prop.sqftTBD) {
+    prop.oversized  = prop.sqft >= SQFT_OVERSIZED;
+    prop.undersized = prop.sqft <= SQFT_UNDERSIZED;
+  }
 
   if (prop.type === 'candidate') {
     const b = computeBaseline(prop);
@@ -2746,6 +2758,10 @@ async function sbLoad() {
         prop.nnnAnnual   = prop.rentTBD ? null : Math.round(prop.sqft * (prop.nnn||0));
         prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
         prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * 0.28 / 121);
+        if (!prop.sqftTBD) {
+          prop.oversized  = prop.sqft >= SQFT_OVERSIZED;
+          prop.undersized = prop.sqft <= SQFT_UNDERSIZED;
+        }
 
         // Add to appropriate lists
         allProperties.unshift(prop);
@@ -2799,6 +2815,10 @@ async function sbLoad() {
         prop.nnnAnnual   = prop.rentTBD ? null : Math.round(prop.sqft * (prop.nnn||0));
         prop.totalAnnual = prop.rentTBD ? null : prop.baseAnnual + prop.nnnAnnual;
         prop.potentialRooms = prop.sqftTBD ? null : Math.floor(prop.sqft * 0.28 / 121);
+        if (!prop.sqftTBD) {
+          prop.oversized  = prop.sqft >= SQFT_OVERSIZED;
+          prop.undersized = prop.sqft <= SQFT_UNDERSIZED;
+        }
 
         // Restore type changes (promotions AND demotions)
         if (row.type === 'replacement' && prop.type === 'candidate') {
